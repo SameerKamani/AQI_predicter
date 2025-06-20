@@ -5,38 +5,37 @@ from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'data')
-JSONL_FILE = os.path.join(DATA_DIR, 'openaq_los_angeles_pm25.jsonl')
 LOCATIONS_URL = 'https://api.openaq.org/v3/locations'
 SENSORS_URL_TPL = 'https://api.openaq.org/v3/sensors/{sensor_id}/measurements'
 
 COORDINATES = '34.0522,-118.2437' # Los Angeles
 RADIUS = 25000 
-PARAMETER = 'pm25'
+PARAMETERS = ['pm25', 'pm10', 'o3', 'no2']
 LIMIT = 500
 TOTAL_RECORDS = 500
 
 
-def get_pm25_sensor_ids(coordinates, radius, api_key):
+def get_sensor_ids(coordinates, radius, parameter, api_key):
     headers = {'X-API-Key': api_key}
     params = {
         'coordinates': coordinates, 
         'radius': radius, 
-        'parameter': PARAMETER,
+        'parameter': parameter,
         'limit': 20
     }
     response = requests.get(LOCATIONS_URL, params=params, headers=headers)
     if response.status_code != 200:
-        print(f"Error finding locations: {response.status_code}, {response.text}")
+        print(f"Error finding locations for {parameter}: {response.status_code}, {response.text}")
         return []
 
     locations = response.json().get('results', [])
     sensor_ids = []
     for loc in locations:
         for sensor in loc.get('sensors', []):
-            if sensor.get('parameter', {}).get('name') == PARAMETER:
+            if sensor.get('parameter', {}).get('name') == parameter:
                 sensor_ids.append(sensor['id'])
     
-    print(f"Found {len(sensor_ids)} sensors with '{PARAMETER}' near {coordinates}.")
+    print(f"Found {len(sensor_ids)} sensors with '{parameter}' near {coordinates}.")
     return sensor_ids
 
 def fetch_openaq_data(sensor_id, api_key, total_records=500, limit=500):
@@ -86,10 +85,15 @@ if __name__ == "__main__":
     if not OPENAQ_API_KEY:
         print("Please set your OPENAQ_API_KEY in a .env file.")
     else:
-        sensor_ids = get_pm25_sensor_ids(COORDINATES, RADIUS, OPENAQ_API_KEY)
-        if not sensor_ids:
-            print(f"Could not find any sensors for {PARAMETER} near {COORDINATES}.")
-        else:
+        for parameter in PARAMETERS:
+            print(f"\n{'='*20}\nFetching data for {parameter.upper()}\n{'='*20}")
+            jsonl_file = os.path.join(DATA_DIR, f'openaq_los_angeles_{parameter}.jsonl')
+            
+            sensor_ids = get_sensor_ids(COORDINATES, RADIUS, parameter, OPENAQ_API_KEY)
+            if not sensor_ids:
+                print(f"Could not find any sensors for {parameter} near {COORDINATES}.")
+                continue
+
             all_records = None
             for sensor_id in sensor_ids:
                 print(f"\n--- Trying Sensor ID: {sensor_id} ---")
@@ -100,6 +104,6 @@ if __name__ == "__main__":
                     break
             
             if all_records:
-                save_to_jsonl(all_records, JSONL_FILE)
+                save_to_jsonl(all_records, jsonl_file)
             else:
-                print(f"\nCould not retrieve '{PARAMETER}' data for any of the found sensors.") 
+                print(f"\nCould not retrieve '{parameter}' data for any of the found sensors.") 
