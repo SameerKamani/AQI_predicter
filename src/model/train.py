@@ -13,14 +13,16 @@ MODEL_FILE = os.path.join(MODEL_DIR, 'aqi_model.pkl')
 
 TARGET = 'pm25'
 
-# --- 2. Load the Processed Data ---
-print("Loading processed data...")
+# --- 2. Load the Pre-processed Data ---
+print("Loading pre-processed data...")
 train_df = pd.read_csv(TRAIN_FILE, index_col='datetime', parse_dates=True)
 test_df = pd.read_csv(TEST_FILE, index_col='datetime', parse_dates=True)
 
-X_train = train_df.drop(TARGET, axis=1)
+# The features are now all columns except the target
+features = [col for col in train_df.columns if col != TARGET]
+X_train = train_df[features]
 y_train = train_df[TARGET]
-X_test = test_df.drop(TARGET, axis=1)
+X_test = test_df[features]
 y_test = test_df[TARGET]
 print("Data loaded.")
 
@@ -37,7 +39,6 @@ model = xgb.XGBRegressor(
     early_stopping_rounds=50
 )
 
-# Use test set as evaluation set for early stopping
 model.fit(
     X_train, y_train,
     eval_set=[(X_test, y_test)],
