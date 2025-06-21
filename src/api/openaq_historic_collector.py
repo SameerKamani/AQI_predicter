@@ -3,6 +3,7 @@ import requests
 import json
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
+import time
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'data')
 LOCATIONS_URL = 'https://api.openaq.org/v3/locations'
@@ -10,9 +11,9 @@ SENSORS_URL_TPL = 'https://api.openaq.org/v3/sensors/{sensor_id}/measurements'
 
 COORDINATES = '34.0522,-118.2437' # Los Angeles
 RADIUS = 25000 
-PARAMETERS = ['pm25', 'pm10', 'o3', 'no2']
+PARAMETERS = ['pm10', 'pm25', 'o3', 'no2', 'co', 'so2', 'bc', 'nox']  # PM10 first as new target, added more parameters
 LIMIT = 500
-TOTAL_RECORDS = 500
+TOTAL_RECORDS = 2000  # Increased from 500 to 2000
 
 
 def get_sensor_ids(coordinates, radius, parameter, api_key):
@@ -38,13 +39,13 @@ def get_sensor_ids(coordinates, radius, parameter, api_key):
     print(f"Found {len(sensor_ids)} sensors with '{parameter}' near {coordinates}.")
     return sensor_ids
 
-def fetch_openaq_data(sensor_id, api_key, total_records=500, limit=500):
+def fetch_openaq_data(sensor_id, api_key, total_records=2000, limit=500):
     records = []
     page = 1
     headers = {'X-API-Key': api_key}
     
     date_to = datetime.now(timezone.utc)
-    date_from = date_to - timedelta(days=90)
+    date_from = date_to - timedelta(days=180)  # Increased from 90 to 180 days
     
     url = SENSORS_URL_TPL.format(sensor_id=sensor_id)
 
@@ -70,6 +71,7 @@ def fetch_openaq_data(sensor_id, api_key, total_records=500, limit=500):
         records.extend(results)
         print(f"Fetched {len(records)} records for sensor {sensor_id}...")
         page += 1
+        time.sleep(1)  # Sleep 1 second between requests to avoid rate limits
     return records[:total_records]
 
 def save_to_jsonl(records, jsonl_file):
