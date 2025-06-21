@@ -5,14 +5,18 @@ import threading
 import queue
 import json
 import os
+import sys
 from datetime import datetime, timedelta
 from collections import deque
 import warnings
 warnings.filterwarnings('ignore')
 
+# Add src to path for imports
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+
 # Import our prediction models
-from predict import PM10Predictor
-from model.ensemble import PM10EnsemblePredictor
+from core.pm10_predictor import PM10Predictor
+from ml.ensemble_predictor import PM10EnsemblePredictor
 
 class RealTimePM10Predictor:
     def __init__(self, prediction_interval=300, history_window=24):

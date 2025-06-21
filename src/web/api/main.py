@@ -7,9 +7,9 @@ import os
 from datetime import datetime, timedelta
 
 # Add the src directory to the path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from predict import PM10Predictor
+from core.pm10_predictor import PM10Predictor
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -189,4 +189,5 @@ async def model_info():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000) 
+    port = int(os.environ.get('API_PORT', 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port) 

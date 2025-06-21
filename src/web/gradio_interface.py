@@ -7,9 +7,10 @@ import plotly.graph_objects as go
 import plotly.express as px
 from datetime import datetime, timedelta
 import time
+import os
 
 # API configuration
-API_BASE_URL = "http://localhost:8000"
+API_BASE_URL = f"http://localhost:{os.environ.get('API_PORT', '8000')}"
 
 def check_api_health():
     """Check if the API is running"""
@@ -349,7 +350,7 @@ with gr.Blocks(title="PM10 Air Quality Predictor", theme=gr.themes.Soft()) as de
             # Event handlers
             def update_temp_placeholder(hours):
                 sample_temps = generate_sample_temperatures(hours)
-                return gr.Textbox.update(value=sample_temps)
+                return gr.update(value=sample_temps)
             
             hours_ahead.change(
                 fn=update_temp_placeholder,
@@ -427,9 +428,10 @@ with gr.Blocks(title="PM10 Air Quality Predictor", theme=gr.themes.Soft()) as de
                     """)
 
 if __name__ == "__main__":
+    port = int(os.environ.get('GRADIO_SERVER_PORT', 7860))
     demo.launch(
         server_name="0.0.0.0",
-        server_port=7860,
+        server_port=port,
         share=False,
         show_error=True
     ) 

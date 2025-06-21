@@ -50,23 +50,26 @@ This project is a full-stack, production-ready system for predicting Air Quality
 │   ├── scaler_balanced.pkl
 │   └── ...
 ├── src/
-│   ├── api/
-│   │   ├── main.py           # FastAPI backend
-│   │   └── ...
-│   ├── analysis/
-│   │   └── feature_analysis.py
-│   ├── data/
-│   │   └── ...
-│   ├── model/
-│   │   ├── train_improved.py
-│   │   ├── ensemble.py
-│   │   └── ...
-│   ├── gradio_app.py         # Gradio frontend
-│   ├── predict.py            # Prediction engine
-│   ├── realtime_predictor.py # Real-time system
-│   └── ...
+│   ├── core/
+│   │   ├── pm10_predictor.py      # Main prediction engine
+│   │   └── realtime_monitor.py    # Real-time monitoring system
+│   ├── web/
+│   │   ├── api/
+│   │   │   └── main.py           # FastAPI backend
+│   │   └── gradio_interface.py   # Gradio frontend
+│   ├── ml/
+│   │   ├── train_pm10_models.py  # Main training script
+│   │   ├── train_lstm_model.py   # LSTM training
+│   │   ├── ensemble_predictor.py # Model ensemble
+│   │   ├── preprocess_pm10_data.py # Data preprocessing
+│   │   ├── create_balanced_dataset.py # Balanced test set
+│   │   └── model/                # Additional ML scripts
+│   └── utils/
+│       ├── analysis/
+│       │   └── feature_analysis.py
+│       └── data/                 # Data processing utilities
 ├── requirements.txt
-├── run_production.py         # Startup script
+├── run_production.py             # Startup script
 └── README.md
 ```
 
@@ -80,9 +83,9 @@ This project is a full-stack, production-ready system for predicting Air Quality
    ```
 3. **Train the models** (if not already trained):
    ```bash
-   python src/model/train_improved.py
+   python src/ml/train_pm10_models.py
    # or for LSTM
-   python src/model/train_LSTM.py
+   python src/ml/train_lstm_model.py
    ```
 4. **Run the production system** (API + Frontend):
    ```bash
@@ -109,7 +112,7 @@ This project is a full-stack, production-ready system for predicting Air Quality
 ### 3. **Real-Time Prediction System**
 - Run:
   ```bash
-  python src/realtime_predictor.py
+  python src/core/realtime_monitor.py
   ```
 - Continuously monitors and predicts PM10
 - Triggers alerts for high pollution events
@@ -127,7 +130,7 @@ This project is a full-stack, production-ready system for predicting Air Quality
 ## 📊 Analysis & Diagnostics
 - Run feature analysis:
   ```bash
-  python src/analysis/feature_analysis.py
+  python src/utils/analysis/feature_analysis.py
   ```
 - Outputs:
   - Feature importance (Linear, RF, MI)

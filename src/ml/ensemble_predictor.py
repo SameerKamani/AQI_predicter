@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import joblib
 import os
+import sys
 from sklearn.ensemble import VotingRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
@@ -9,6 +10,9 @@ import xgboost as xgb
 from tensorflow import keras
 import warnings
 warnings.filterwarnings('ignore')
+
+# Add src to path for imports
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 class PM10EnsemblePredictor:
     def __init__(self):

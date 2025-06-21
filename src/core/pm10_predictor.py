@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 class PM10Predictor:
     def __init__(self):
         """Initialize the PM10 predictor with the best trained model"""
-        self.model_dir = os.path.join(os.path.dirname(__file__), '..', 'models')
+        self.model_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'models')
         self.scaler_file = os.path.join(self.model_dir, 'scaler_balanced.pkl')
         self.model_file = os.path.join(self.model_dir, 'best_pm10_model_lr.pkl')
         
