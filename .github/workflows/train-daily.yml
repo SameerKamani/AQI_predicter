@@ -28,6 +28,8 @@ jobs:
           pip install -r requirements.txt
 
       - name: Ensure features exist (fallback rebuild 365 days if missing)
+        env:
+          OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
         run: |
           if [ ! -f Data/feature_store/karachi_daily_features.parquet ]; then 
             echo 'Features parquet missing. Rebuilding last 365 days...';
@@ -47,11 +49,37 @@ jobs:
       - name: Train Linear
         run: python Models/train_linear.py --holdout_days 90
 
+      - name: Train RandomForest
+        run: python Models/train_rf.py --holdout_days 90
+
       - name: Stack and calibrate
         run: python Models/stacking_linear_lightgbm.py --holdout_days 90 --constrain_nonneg --sum_to_one --calibrate
 
       - name: Predict latest
         run: python Models/predict_latest.py
+
+      - name: Alert on hazardous AQI (hd1 >= 200)
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, sys
+          with open('Models/registry/latest_forecast.json','r',encoding='utf-8') as f:
+              blob = json.load(f)
+          hd1 = (blob.get('blend') or {}).get('hd1')
+          if hd1 is None:
+              print('No hd1 value in latest forecast; skipping alert')
+              sys.exit(0)
+          try:
+              v = float(hd1)
+          except Exception:
+              v = -1
+          if v >= 200.0:
+              print(f'HAZARDOUS AQI ALERT: blended hd1={v:.1f} >= 200')
+              # Fail the job to raise visibility; change to sys.exit(0) if you prefer non-blocking notice
+              sys.exit(1)
+          else:
+              print(f'OK: blended hd1={v:.1f} < 200')
+          PY
 
       - name: Upload summaries and models
         uses: actions/upload-artifact@v4
@@ -59,7 +87,6 @@ jobs:
           name: train-artifacts-${{ github.run_id }}
           path: |
             EDA/lightgbm_output/summary.json
-            EDA/xgboost_output/summary.json
             EDA/hgbr_output/summary.json
             EDA/linear_output/summary.json
             EDA/blend_output/summary.json

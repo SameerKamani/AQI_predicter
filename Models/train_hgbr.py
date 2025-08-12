@@ -11,6 +11,11 @@ from sklearn.experimental import enable_hist_gradient_boosting  # noqa: F401
 from sklearn.ensemble import HistGradientBoostingRegressor
 
 try:
+    import shap  # type: ignore
+except Exception:
+    shap = None
+
+try:
     import optuna  # type: ignore
 except Exception:
     optuna = None
@@ -196,6 +201,34 @@ def train_for_horizon(
     feature_cols = select_feature_columns(df)
     horizon = target_col.replace("target_aqi_", "h")
     save_artifacts(model, feature_cols, horizon, registry_dir, out_dir, metrics, preds_df)
+    
+    # SHAP explanations using shap.Explainer (permutation-based for HGBR)
+    try:
+        if shap is not None:
+            X_shap = _coerce_numeric_dataframe(X_test.copy())
+            if len(X_shap) > 5000:
+                X_shap = X_shap.sample(5000, random_state=seed)
+            explainer = shap.Explainer(model.predict, X_shap)
+            shap_values = explainer(X_shap)
+            # For regression, .values has shape (n_samples, n_features)
+            vals = getattr(shap_values, "values", None)
+            if vals is not None:
+                mean_abs = np.mean(np.abs(vals), axis=0)
+                shap_df = (
+                    pd.DataFrame({"feature": X_shap.columns, "mean_abs_shap": mean_abs})
+                    .sort_values("mean_abs_shap", ascending=False)
+                    .reset_index(drop=True)
+                )
+                shap_out_dir = os.path.join("EDA", "shap_output")
+                os.makedirs(shap_out_dir, exist_ok=True)
+                shap_path = os.path.join(shap_out_dir, f"shap_global_hgbr_{horizon}.csv")
+                shap_df.to_csv(shap_path, index=False)
+                print(f"Saved SHAP (HGBR) global importance -> {shap_path}")
+        else:
+            print("SHAP not installed; skipping HGBR SHAP explanations. 'pip install shap' to enable.")
+    except Exception as e:
+        print(f"SHAP (HGBR) computation failed: {e}")
+
     print(f"HGBR {horizon} -> RMSE: {metrics['rmse']:.3f} | MAE: {metrics['mae']:.3f} | R2: {metrics['r2']:.3f}")
     return metrics
 

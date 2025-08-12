@@ -27,16 +27,26 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Build features (append yesterday)
+      - name: Build features (today, append)
         env:
           OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
         run: |
-          # Build features for the last 1 day (pipeline excludes today -> uses yesterday)
+          # Ingest today's partial hours so this truly updates hourly
           python Data_Collection/feature_store_pipeline.py \
-            --days 1 \
+            --start "$(date -u +%Y-%m-%d)" \
+            --end   "$(date -u +%Y-%m-%d)" \
             --impute_short_gaps \
             --min_hours_per_day 16 \
             --append
+
+      - name: Feast apply + materialize last 1 day
+        working-directory: feature_repo
+        shell: bash
+        run: |
+          feast apply
+          START=$(date -u -d "-1 day" +"%Y-%m-%dT%H:%M:%SZ")
+          END=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          feast materialize "$START" "$END"
 
       - name: Quick sanity check
         run: |

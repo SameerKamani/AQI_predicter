@@ -183,7 +183,7 @@ def main():
     df_full = pd.read_parquet(args.parquet).sort_values("event_timestamp").reset_index(drop=True)
 
     for horizon in ["hd1", "hd2", "hd3"]:
-        # Load predictions (support LGB, Linear, optional XGB, HGBR)
+        # Load predictions (support LGB, Linear, HGBR, RF)
         lgb_df = load_lightgbm_preds(args.registry, horizon)
         lin_df, lin_model_path = load_linear_model_and_pred(args.parquet, args.registry, horizon, args.holdout_days)
         base_frames = [lgb_df, lin_df]
@@ -194,6 +194,14 @@ def main():
             hgb_df = load_generic_preds(args.registry, "hgb", horizon, "y_pred_hgb")
             base_frames.append(hgb_df)
             base_cols.append("y_pred_hgb")
+        except Exception:
+            pass
+
+        # RandomForest
+        try:
+            rf_df = load_generic_preds(args.registry, "rf", horizon, "y_pred_rf")
+            base_frames.append(rf_df)
+            base_cols.append("y_pred_rf")
         except Exception:
             pass
 

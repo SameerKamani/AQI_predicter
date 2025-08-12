@@ -14,3 +14,7 @@ joblib
 shap
 optuna
 xgboost
+fastapi
+uvicorn
+gradio
+plotly

@@ -105,6 +105,23 @@ def predict_with_hgbr(df: pd.DataFrame) -> Dict[str, float]:
     return result
 
 
+def predict_with_rf(df: pd.DataFrame) -> Dict[str, float]:
+    result: Dict[str, float] = {}
+    for hz in ["hd1", "hd2", "hd3"]:
+        payload_path = _latest_file(os.path.join(REGISTRY_DIR, f"rf_{hz}_*.joblib"))
+        if not payload_path:
+            continue
+        try:
+            payload = joblib.load(payload_path)
+            model = payload.get("model")
+            feats: List[str] = payload.get("features", _select_feature_columns(df))
+            X_latest = _coerce_numeric_impute_latest(df, feats)
+            pred = float(model.predict(X_latest)[0])
+            result[hz] = pred
+        except Exception:
+            continue
+    return result
+
 def _load_blend_weights() -> Dict[str, Dict[str, float]]:
     # Prefer latest registry artifact
     reg_weights = _latest_file(os.path.join(REGISTRY_DIR, "blend_weights_*.json"))
@@ -138,6 +155,7 @@ def main() -> None:
     # XGBoost disabled in blend path
     # XGBoost removed
     hgb_preds = predict_with_hgbr(df)
+    rf_preds = predict_with_rf(df)
 
     weights = _load_blend_weights()
     blended: Dict[str, float] = {}
@@ -146,10 +164,11 @@ def main() -> None:
         "y_pred_linear": lin_preds,
         # "y_pred_xgb": xgb_preds,
         "y_pred_hgb": hgb_preds,
+        "y_pred_rf": rf_preds,
     }
     for hz in ["hd1", "hd2", "hd3"]:
         wz = weights.get(hz) or {}
-        # default fallback: prefer lgb, else linear, else xgb, else hgb
+        # default fallback: prefer lgb, else linear, else hgb, else rf
         if not wz:
             if hz in lgb_preds:
                 blended[hz] = lgb_preds[hz]
@@ -157,11 +176,11 @@ def main() -> None:
             if hz in lin_preds:
                 blended[hz] = lin_preds[hz]
                 continue
-            if hz in xgb_preds:
-                blended[hz] = xgb_preds[hz]
-                continue
             if hz in hgb_preds:
                 blended[hz] = hgb_preds[hz]
+                continue
+            if hz in rf_preds:
+                blended[hz] = rf_preds[hz]
                 continue
             continue
         total = 0.0
@@ -185,6 +204,7 @@ def main() -> None:
         "linear": lin_preds,
         # "xgboost": {},
         "hgbr": hgb_preds,
+        "rf": rf_preds,
         "blend": blended,
     }
     out_path = os.path.join(REGISTRY_DIR, "latest_forecast.json")
