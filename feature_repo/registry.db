@@ -1,0 +1,66 @@
+
+B
+"
+__dummy"
+__dummy_idJkarachi_aqi
+©ÅÙÄÀß›—©ÅÙÄÀß›—
+`
+@
+
+karachi_idKarachi city identifier"
+karachi_idJkarachi_aqi
+©ÅÙÄÀß›—©ÅÙÄÀß›—1"$4507e6af-eba8-4aea-8a86-f20118db4133*€ÈéÄÈÐ¤š2…
+—
+karachi_air_quality_dailykarachi_aqi
+karachi_id"
+	aqi_daily"
+
+pm2_5_mean"
+	pm10_mean"
+co_mean"
+no_mean"
+no2_mean"
+o3_mean"
+so2_mean"
+nh3_mean"
+day_of_week"
+day_of_year"	
+month"
+
+is_weekend"
+aqi_daily_lag1"
+aqi_daily_lag2"
+aqi_daily_lag3"
+pm2_5_mean_lag1"
+pm2_5_mean_lag2"
+pm2_5_mean_lag3"
+pm10_mean_lag1"
+pm10_mean_lag2"
+pm10_mean_lag3"
+aqi_roll_mean_3"
+aqi_roll_std_7"
+aqi_change_rate"
+target_aqi_d1"
+target_aqi_d2"
+target_aqi_d32€Æ
+:Þevent_timestamp*createdZ64../Data/feature_store/karachi_daily_features.parquetŠ1feast.infra.offline_stores.file_source.FileSource¢4../Data/feature_store/karachi_daily_features.parquet’éÇéÄàåÍ—"éÇéÄàåÍ—@b
+
+karachi_idè
+©ÅÙÄÀß›—€ÈéÄÈÐ¤š
+¯üþÀ·ÊÙÄ
+é€ÿÀðÎÙÄ
+ŠšÿÀŠèÙÄ
+¨©ÿÀ¨÷ÙÄ
+þÕÿÀþ£ÚÄ
+þ£ÚÄóãèÄØáŒŠ
+ÅœŽÁÅêèÄ
+±¬ŽÁ±úèÄ
+ÆÅŽÁÆ“éÄ
+ôèŽÁô¶éÄ
+ëùŽÁëÇéÄRƒ
+€
+,feast.infra.online_stores.sqlite.SqliteTable"P
+'E:\10pearls\feature_repo\data\online.db%karachi_aqi_karachi_air_quality_dailybëevent_timestamp*createdZ64../Data/feature_store/karachi_daily_features.parquetŠ1feast.infra.offline_stores.file_source.FileSource¢4../Data/feature_store/karachi_daily_features.parquetªkarachi_aqi’©ÅÙÄàÏ›>"©ÅÙÄÀß›—Š+
+
+karachi_aqi
+©ÅÙÄ¨ä§C©ÅÙÄ¨ä§C

@@ -1,0 +1,89 @@
+Pearls — Karachi AQI Predictor: Implementation Guide (Plain-English, No Code)
+
+1) What we are building and why
+- Objective: Predict Karachi’s daily Air Quality Index (AQI) for the next three days using a regression approach.
+- Why regression: AQI is a continuous number on the US EPA 0–500 scale; predicting categories would lose precision.
+- Outcome: A pipeline that ingests data, engineers reliable features, and manages them with a feature store for consistency across training and serving.
+
+2) Data source selection and rationale
+- Source: OpenWeather Air Pollution data for Karachi (latitude/longitude based).
+- Why a single provider: Avoids reconciling different AQI scales and station schemas and keeps operations simple.
+- What we use: Hourly pollutant concentrations (PM2.5, PM10, CO, NO2, SO2, O3, NH3). These are strong drivers of AQI.
+- Target construction: Convert pollutant concentrations into a continuous US EPA AQI. For this phase we compute daily AQI from daily means of PM2.5 and PM10 as a strong, transparent baseline.
+
+3) Storage model and separation of concerns
+- Raw hourly data: Kept in Data/raw/ as an auditable record and to enable recomputation.
+- Curated daily features: Kept in Data/feature_store/ as the single table used for training and for serving via the feature store.
+- Why not store raw in the feature store: The feature store is for validated, model-ready features. Raw is separate to preserve lineage and reduce noise.
+
+4) Feature engineering (daily grain)
+- Daily aggregations: Means for PM2.5, PM10, CO, NO, NO2, O3, SO2, NH3 and a count of hourly records per day for completeness.
+- Calendar features: Day-of-week, day-of-year, month, and a weekend flag to capture seasonality.
+- Temporal history: Lag features for AQI and key pollutants (previous 1, 2, and 3 days) to capture short-term dynamics.
+- Rolling statistics: A short rolling mean and a weekly-scale rolling standard deviation of AQI to capture trend and variability.
+- Momentum: Day-over-day AQI change rate to capture direction and size of recent moves.
+- Targets: AQI for day+1, day+2, and day+3 to align with the forecasting horizon.
+- Leakage prevention: Only past information is used; no same-day or future actuals are included in features.
+- Why PM features and past AQI are included: They contain the most predictive signal for AQI; we control dominance downstream with standard ML techniques.
+
+5) Time windows and scheduling
+- Backfill window: Start with about ninety days of history to quickly enable modeling; expand later for robustness.
+- Excluding today: We intentionally skip the current day to avoid partial-day aggregates and leakage.
+- Safe reruns: Outputs are merged and deduplicated by keys so the pipeline can run regularly without producing duplicates.
+
+6) Secrets and environment handling
+- Configuration is read from a single .env file at the project root so keys are not hard-coded. Scripts automatically load it when present.
+- Benefit: Cleaner local development and simpler automation later.
+
+7) Feature store choice and purpose
+- Choice: Feast, an open-source and lightweight feature store that works well with file-based data.
+- Why Feast now: It gives us central feature definitions, training/serving consistency, and simple online serving without heavy infrastructure.
+- What Feast provides here:
+  * A definition of our entity (Karachi) and a single daily feature view.
+  * An offline store that reads Parquet features for training and historical retrieval.
+  * An online store (SQLite) for low-latency serving of the most recent features.
+  * A registry that records feature schemas and metadata for reproducibility.
+
+8) Online population and consistency guarantees
+- Materialization concept: Copy the latest curated features from the offline store into the online store on a cadence so online inference is up to date.
+- Expected tiny differences: Floating-point rounding may produce very small numeric differences between offline and online; these are normal and tolerated.
+- Our consistency check: We compare the latest online features against the latest offline row for Karachi and require they match within a small tolerance.
+
+9) Data quality and robustness safeguards
+- Deduplication by primary keys so repeated runs do not create duplicates.
+- Type stability for keys during merges and sorts to prevent failures when combining new and existing data.
+- UTC timestamps for all data; daily rows use midnight UTC as the event time for clarity and consistency.
+
+10) What we accomplished so far
+- Implemented raw data ingestion for Karachi and produced a clean, hourly dataset under Data/raw/.
+- Built a daily, model-ready feature table with lags, rolling stats, change rates, and next-day to three-day targets under Data/feature_store/.
+- Integrated Feast with a file-based offline store and a SQLite online store and registered the project, entity, and feature view.
+- Populated the online store from the offline features and verified offline/online consistency within acceptable numeric tolerance.
+
+11) Tools used and why
+- OpenWeather Air Pollution data: High-coverage, consistent hourly pollutant concentrations for Karachi.
+- Python data stack (requests, pandas): Reliable for HTTP ingestion and tabular time-series transformation.
+- python-dotenv: Seamless loading of secrets from a single .env file at the project root across scripts.
+- Parquet (pyarrow): Efficient, typed columnar storage for offline features; preferred over CSV for performance and schema stability.
+- Feast: Centralized feature management, consistent training/serving definitions, simple online serving.
+- SQLite (via Feast): Lightweight, local online store suitable for this project’s current scope.
+
+12) Current layout (high-level)
+- Data/raw/: Hourly raw pollutant measurements for Karachi.
+- Data/feature_store/: Daily engineered features and targets, both CSV and Parquet.
+- Data_Collection/: Ingestion and feature-pipeline scripts with merging, deduplication, and timestamp handling.
+- feature_repo/: Feast configuration, entity and feature view definitions, registry, online database, and a consistency checker.
+
+13) Key design decisions, summarized
+- Continuous regression target on the EPA 0–500 scale for higher-fidelity predictions.
+- Inclusion of PM2.5, PM10, and past AQI as essential predictive features with safeguards against leakage and overfitting.
+- Single-source ingestion to avoid cross-provider inconsistencies; extensible later if needed.
+- Use of Feast to ensure training/serving parity and to enable straightforward online serving.
+- Separation of raw and curated data to keep the feature store clean and reliable.
+
+14) Next steps
+- Train baseline and advanced models with time-aware validation and track RMSE/MAE.
+- Perform explainability analysis (e.g., SHAP) to validate that the model leverages features as expected.
+- Add a minimal frontend to display a three-day forecast and optionally automate daily runs.
+
+End of guide.

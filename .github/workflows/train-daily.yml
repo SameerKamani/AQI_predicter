@@ -1,0 +1,71 @@
+name: Train - Daily
+
+on:
+  schedule:
+    - cron: '15 2 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: train-daily
+  cancel-in-progress: false
+
+jobs:
+  train-stack-predict:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Ensure features exist (fallback rebuild 365 days if missing)
+        run: |
+          if [ ! -f Data/feature_store/karachi_daily_features.parquet ]; then 
+            echo 'Features parquet missing. Rebuilding last 365 days...';
+            python Data_Collection/feature_store_pipeline.py --days 365 --impute_short_gaps --min_hours_per_day 16;
+          else
+            echo 'Found features parquet.';
+          fi
+
+      - name: Train LightGBM
+        run: python Models/train_lightgbm.py --holdout_days 90 --tune --tune_trials 25
+
+      # XGBoost removed
+
+      - name: Train HGBR
+        run: python Models/train_hgbr.py --holdout_days 90 --tune --tune_trials 20
+
+      - name: Train Linear
+        run: python Models/train_linear.py --holdout_days 90
+
+      - name: Stack and calibrate
+        run: python Models/stacking_linear_lightgbm.py --holdout_days 90 --constrain_nonneg --sum_to_one --calibrate
+
+      - name: Predict latest
+        run: python Models/predict_latest.py
+
+      - name: Upload summaries and models
+        uses: actions/upload-artifact@v4
+        with:
+          name: train-artifacts-${{ github.run_id }}
+          path: |
+            EDA/lightgbm_output/summary.json
+            EDA/xgboost_output/summary.json
+            EDA/hgbr_output/summary.json
+            EDA/linear_output/summary.json
+            EDA/blend_output/summary.json
+            Models/registry/*_preds.csv
+            Models/registry/blend_weights_*.json
+            Models/registry/latest_forecast.json
+          retention-days: 14
+
+

@@ -1,0 +1,340 @@
+Great — below is a **complete, corrected, and much more in-depth project specification** that (1) preserves the constraints you asked for, and (2) **adds every important item from the PDF** that was missing in your original description. I’ve also explained tradeoffs where your constraints differ from the PDF (for example, daily-only data vs. PDF’s hourly feature updates).
+
+---
+
+# Pearls — AQI Predictor (Detailed & Corrected Specification)
+
+## Project summary (confirmed)
+
+* **Goal:** Build a **serverless, regression** system that forecasts **Air Quality Index (AQI) for the next 3 days** (confirmed from the PDF).
+* **User constraints (your requests honored):**
+
+  * No unit tests.
+  * No additional security section or measures included.
+  * No alerting system.
+  * Dashboard must be **as simple as possible** and implemented in **Gradio** (only shows AQI predictions).
+  * Use **GitHub Actions** for CI/CD automation.
+  * Data arrives **daily** (your stated requirement).
+* **PDF requirements restored/included:** hourly feature updates (PDF), EDA, statistical models (ARIMA/Prophet), SHAP/LIME explainability, Docker containerization, backfilling historical data, hourly vs daily pipeline distinction — all covered below.
+
+---
+
+# 1. Overall architecture (textual flow)
+
+```
+External APIs (AQICN / OpenWeather / others)
+    ↓ (daily ingestion — or hourly if available)
+Feature Pipeline → Feature Store (Hopsworks / Vertex or simple Parquet/S3)
+    ↓ (historical backfill runs once)
+Training Pipeline → Model Registry (MLflow/S3)
+    ↓
+GitHub Actions CI/CD (schedules + deploy)
+    ↓
+Prediction Service (serverless) → Gradio frontend (simple 3-day forecast)
+```
+
+---
+
+# 2. Key clarifications from PDF that are now included
+
+* **Feature pipeline frequency (PDF):** runs **hourly** (to keep features fresh).
+  **Your constraint:** data arrives daily.
+  **Resolution:** Document provides both options and tradeoffs (see below). If only daily data exists, run the feature pipeline daily; if the API allows hourly reads, you can enable hourly feature updates (recommended by PDF).
+* **Training pipeline frequency (PDF):** runs **daily**. This is included and recommended (see model retraining section).
+* **Use multiple types of forecasting models:** statistical (ARIMA/Prophet), ML (Random Forest, Ridge, XGBoost), and Deep Learning (LSTM/Transformer).
+* **EDA & feature importance** are explicitly required (PDF asks for EDA and SHAP/LIME).
+* **Docker containerization** is expected by the PDF — included.
+* **Backfilling historical data** for training is explicitly required and documented.
+
+---
+
+# 3. Data acquisition (in depth)
+
+**Sources:** AQICN, OpenWeather, or other local AQ APIs.
+**Required fields (minimum):**
+
+* Weather: temperature, humidity, wind speed/direction, pressure.
+* Pollutants: PM2.5, PM10, CO, NO₂, SO₂, O₃ (if available).
+* AQI value (from API or computed from pollutant concentrations).
+  **Granularity:** You specified **daily**; the PDF suggests higher frequency (hourly) is preferable. If daily:
+* Model will operate on daily inputs and produce daily 3-day ahead AQI.
+  If hourly data is available and you choose to use it:
+* You can aggregate to daily or keep hourly features and produce daily forecasts with richer features.
+  **Historical backfill:** run feature script across a past date range to create training dataset (essential when starting).
+
+---
+
+# 4. Feature engineering (very detailed)
+
+Start with a core set of features, then iterate:
+
+**Core / Mandatory features**
+
+* Time-based: `day_of_week`, `day_of_year`, `month`, `is_weekend`.
+* Lags: `AQI_t-1`, `AQI_t-2`, `AQI_t-3` (for a 3-day horizon, include several lags).
+* Rolling stats: `rolling_mean_AQI_3d`, `rolling_std_AQI_7d`.
+* Change rates: `(AQI_t - AQI_t-1)`, pollutant change rates.
+* Pollutant features: current pollutant values and pollutant lag/rolling stats.
+* Weather features: temp, humidity, wind components (u/v), wind direction encoded as sin/cos.
+
+**Advanced features (iterate later)**
+
+* **Cyclical encodings** for day/hour: `sin(2πhour/24)`, `cos(2πhour/24)` — useful if using hourly data.
+* **Interaction terms:** `PM2.5 × humidity`, `wind_speed × pollutant`.
+* **Ratios:** `PM2.5/PM10`.
+* **Seasonality indicators:** `is_monsoon`, `season_one_hot` (if local seasons matter).
+* **Spatial features:** if multi-station, distances or station IDs (not requested here).
+
+**Missing values & outliers**
+
+* Impute missing pollutant values with rolling median or interpolation.
+* Clip extreme outliers (e.g., 99.9th percentile) or use robust scalers.
+
+**Feature selection**
+
+* Correlation analysis, permutation importance, and **SHAP** values to identify top features.
+
+**Feature store**
+
+* Recommended: Hopsworks or Vertex AI Feature Store (PDF suggests these). If not available, store time-partitioned Parquet files in cloud storage.
+
+---
+
+# 5. Targets (label construction)
+
+* **Target definition:** `AQI_{t+3days}` (3 days ahead) — for daily-granularity target.
+* For hourly modeling (if chosen), `AQI_{t+72hours}` would be 3 days ahead in hours.
+* Build the dataset with aligned features and targets (shift the AQI column accordingly).
+
+---
+
+# 6. Model choices & best practices (in depth)
+
+**Problem type:** regression (continuous AQI value). Important: not classification.
+
+**Model families to evaluate (PDF requires variety)**
+
+* **Statistical:** ARIMA/SARIMA, Prophet — good baselines for seasonality/trend.
+* **Classical ML:** Ridge Regression (baseline), Random Forest, XGBoost/LightGBM.
+* **Deep learning:** LSTM/GRU (for sequences), Temporal Convolutional Networks, Transformer-based time-series models.
+
+**Validation for time series**
+
+* **Walk-forward (rolling origin) validation** — do not use random CV.
+* Keep a final holdout period (e.g., last 3 months) for real performance estimate.
+
+**Metrics**
+
+* **Primary:** RMSE, MAE.
+* **Secondary:** R².
+* Choose the metric to optimize (RMSE scales errors and penalizes large deviations).
+
+**Hyperparameter tuning**
+
+* Optuna or grid search, but use time-series-respecting CV (rolling windows).
+
+**Model explainability**
+
+* Use **SHAP** for tree/ML models, **LIME** for non-tree models if needed. The PDF explicitly asks for SHAP/LIME.
+
+---
+
+# 7. Training pipeline & schedule (reconciles PDF vs your constraint)
+
+**PDF:** feature pipeline hourly + training daily.
+**Your constraint:** data comes daily.
+
+**Recommended approach (both included):**
+
+* If **only daily data** is available:
+
+  * Run **feature pipeline daily** (cron in GitHub Actions).
+  * Run **training pipeline daily** (PDF recommended) — or you can choose **train less frequently** if compute cost is a concern (see notes below).
+* If **hourly data** is available and you want to follow PDF fully:
+
+  * Run **feature pipeline hourly** and **training pipeline daily** (training daily to pick up new patterns).
+
+**Note on “train once” idea:** PDF intends **daily retraining**. Training **only once** is possible but not recommended — AQI processes change with seasons, events, and human activity. If you insist on training once, expect model degradation over time. Alternative: train once, then retrain manually after performance drift is observed (but that requires monitoring, which you said you don't want). Recommendation: follow PDF and schedule daily training via GitHub Actions.
+
+---
+
+# 8. CI/CD: GitHub Actions (detailed)
+
+**Workflows to implement:**
+
+1. **feature\_pipeline.yml** — daily (or hourly if API supports):
+
+   * Job: run feature extraction script, store results to Feature Store / S3.
+   * Cron example: daily at 1:00 AM: `cron: '0 1 * * *'`
+   * For hourly: `cron: '0 * * * *'` (PDF suggested hourly).
+2. **train\_pipeline.yml** — daily training & evaluation:
+
+   * Job: fetch features, run training, evaluate metrics, save model to Model Registry.
+   * Cron example: daily at 02:00 AM: `cron: '0 2 * * *'`
+3. **deploy.yml** — deploy model / app (triggered after successful train).
+
+**Example GitHub Actions cron snippet (YAML)**
+
+```yaml
+on:
+  schedule:
+    - cron: '0 1 * * *'   # runs daily at 01:00 UTC (features)
+    - cron: '0 2 * * *'   # runs daily at 02:00 UTC (training)
+```
+
+**Notes**
+
+* Keep logs and artifacts for debugging.
+* Store model artifacts in Model Registry (MLflow or cloud storage).
+* Avoid pushing large binaries to repo — use artifacts or cloud bucket.
+
+---
+
+# 9. Model registry & deployment (notes)
+
+* Recommended: **MLflow** for model store + metadata, or simple S3/GCS + JSON metadata.
+* Save model metadata: training date, training metrics, hyperparameters.
+* The prediction service loads the latest approved model and uses latest features to generate forecasts.
+
+---
+
+# 10. Prediction service & Gradio frontend (detailed)
+
+**Prediction logic**
+
+* Load latest model.
+* Pull latest features for city (from feature store or API).
+* Predict `AQI_{t+1}`, `AQI_{t+2}`, `AQI_{t+3}` and return as JSON.
+
+**Gradio interface (minimal)**
+
+* Input: **city** or **station id** (or pre-configured default city).
+* Output: simple table with 3 rows (Day+1, Day+2, Day+3) showing predicted AQI and a one-line sparkline (optional).
+* No alerts, no complex charts — keep it minimal as you asked.
+
+**Deployment**
+
+* Gradio app can run as a small server (Uvicorn/Gunicorn) and be containerized for serverless hosting.
+* Alternatively, host via a small VM or serverless container provider (Cloud Run, AWS Fargate) — but you asked for serverless stack originally so Cloud Run / Fargate / Functions are options.
+
+---
+
+# 11. EDA & Reporting (required by PDF)
+
+**Do these analyses before modeling:**
+
+* Time-series decomposition (trend, seasonality, residual).
+* Correlation matrix between pollutants & AQI.
+* Missingness heatmap & imputation strategy.
+* Seasonal plots (monthly, weekly).
+* Stationarity checks (ADF test) if you use ARIMA.
+* Document insights in a short EDA report (1–2 pages).
+
+---
+
+# 12. Explainability (SHAP / LIME)
+
+* Compute **global** feature importance with SHAP summary plots.
+* Get **local** explanations for specific predictions (e.g., a day with large deviation).
+* Present top features in the project report (PDF asked for this).
+
+---
+
+# 13. Dockerization
+
+* Create a simple `Dockerfile` that:
+
+  * Installs dependencies.
+  * Copies model artifacts.
+  * Runs the Gradio app.
+* This is required by PDF and helps consistent deployments.
+
+**Minimal Dockerfile example**
+
+```dockerfile
+FROM python:3.10-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+COPY . .
+CMD ["python", "app_gradio.py"]
+```
+
+---
+
+# 14. Backfill historical data (detailed)
+
+* Use the feature extraction script to iterate over a historical date range and fetch past data.
+* If the API does not provide historical endpoints, use any public data dumps, or scrape archived data from trusted sources.
+* Store backfilled features in the feature store and mark them as historical partitions.
+
+---
+
+# 15. Monitoring & model drift (brief note)
+
+* You said you don’t want alerts. Still consider minimal metrics logging (train/validation metrics) to detect decay (manual checks).
+* If you later want automated retraining triggers, it’s an easy extension.
+
+---
+
+# 16. Deliverables (revised & complete)
+
+* **End-to-end pipeline:** Data ingestion → features → training → prediction.
+* **Feature pipeline** with backfill capability (hourly or daily according to availability).
+* **Training pipeline** (scheduled daily) that saves models to registry.
+* **Minimal Gradio dashboard** with 3-day AQI forecast (simple UI).
+* **EDA report** and **model explainability** (SHAP/LIME) outputs.
+* **Dockerfile** for the app.
+* **GitHub Actions** workflow files for automation.
+* **Project documentation**: data sources, preprocessing, model choices, training runs, and evaluation.
+
+---
+
+# 17. Recommendations & tradeoffs (short)
+
+* **Hourly vs daily features:** PDF recommends hourly features for freshness; if your data is only daily, you’ll lose short-term signal (e.g., intraday pollution spikes). Daily is fine but expect slightly lower responsiveness.
+* **Retrain daily (PDF) vs once:** Retraining daily is best practice (PDF). Training once will likely cause model drift unless environment is extremely stable.
+* **Feature engineering depending on accuracy:** Good approach — start with a strong baseline feature set (time + lags + rolling stats) and iterate based on validation errors and SHAP importance. Do **not** defer all FE to late — start with the core features first.
+
+---
+
+# 18. Example folder layout (recommended)
+
+```
+/aqi-predictor
+  /data_ingest
+    fetch_features.py
+  /features
+    feature_store_client.py
+  /models
+    train.py
+    evaluate.py
+  /deploy
+    app_gradio.py
+    Dockerfile
+  /ci
+    .github/workflows/feature_pipeline.yml
+    .github/workflows/train_pipeline.yml
+  /notebooks
+    eda.ipynb
+  README.md
+```
+
+---
+
+# 19. Final notes (explicit)
+
+* **Forecast horizon:** confirmed **3 days** (PDF).
+* **Regression problem:** confirmed.
+* **Removed per your request:** alerts, unit tests, security sections.
+* **Automation:** GitHub Actions used for scheduling feature extraction and training; PDF recommended hourly features + daily training; we keep both options and recommend daily training as a minimum.
+
+---
+
+If you want, next I can:
+
+* Produce the **ready-to-run GitHub Actions YAML** files for both the feature pipeline and training pipeline (with cron schedules adapted to daily-only data).
+* Generate **starter code** for feature extraction and a minimal **Gradio UI** that loads a trained model and shows a 3-day forecast.
+* Create the **Dockerfile** and a small `README.md` for deployment.
+
+Which of those should I build out first?

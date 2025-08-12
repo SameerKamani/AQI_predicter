@@ -1,0 +1,22 @@
+# Python / venv
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Env / editors
+.env
+.vscode/
+.idea/
+.DS_Store
+
+
+# Notebooks
+.ipynb_checkpoints/
+
+# UI (if applicable)
+UI/node_modules/
+UI/build/
+UI/dist/
+
+
