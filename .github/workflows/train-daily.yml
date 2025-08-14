@@ -27,6 +27,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Install Feast
+        run: pip install feast[sqlite]
+
       - name: Ensure features exist (fallback rebuild 365 days if missing)
         env:
           OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
@@ -54,6 +57,9 @@ jobs:
 
       - name: Stack and calibrate
         run: python Models/stacking_linear_lightgbm.py --holdout_days 90 --constrain_nonneg --sum_to_one --calibrate
+
+      - name: Run EDA
+        run: python EDA/run_eda.py
 
       - name: Predict latest
         run: python Models/predict_latest.py

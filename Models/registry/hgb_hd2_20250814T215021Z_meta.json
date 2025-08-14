@@ -1,0 +1,13 @@
+{
+  "horizon": "hd2",
+  "created_utc": "20250814T215021Z",
+  "model_path": "Models\\registry\\hgb_hd2_20250814T215021Z.joblib",
+  "metrics": {
+    "rmse": 20.503868465356494,
+    "mae": 15.822589014436655,
+    "r2": 0.28281858782698477,
+    "mape_pct": 29.72620597766155
+  },
+  "predictions_path": "Models\\registry\\hgb_hd2_20250814T215021Z_preds.csv",
+  "library": "sklearn.HGBR"
+}

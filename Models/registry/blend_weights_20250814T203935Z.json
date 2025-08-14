@@ -1,0 +1,40 @@
+{
+  "weights": {
+    "hd1": {
+      "y_pred_lgb": 0.24026991241058926,
+      "y_pred_linear": 0.0,
+      "y_pred_hgb": 0.7597300875894107,
+      "y_pred_rf": 0.0
+    },
+    "hd2": {
+      "y_pred_lgb": 1.0,
+      "y_pred_linear": 0.0,
+      "y_pred_hgb": 0.0,
+      "y_pred_rf": 0.0
+    },
+    "hd3": {
+      "y_pred_lgb": 1.0,
+      "y_pred_linear": 0.0,
+      "y_pred_hgb": 0.0,
+      "y_pred_rf": 0.0
+    }
+  },
+  "artifacts": {
+    "hd1": {
+      "lightgbm_preds": "Models\\registry\\lgb_hd1_20250814T203730Z_preds.csv",
+      "linear_model": "Models\\registry\\linear_hd1_20250814T203902Z.joblib",
+      "holdout_days": "90"
+    },
+    "hd2": {
+      "lightgbm_preds": "Models\\registry\\lgb_hd2_20250814T203731Z_preds.csv",
+      "linear_model": "Models\\registry\\linear_hd2_20250814T203916Z.joblib",
+      "holdout_days": "90"
+    },
+    "hd3": {
+      "lightgbm_preds": "Models\\registry\\lgb_hd3_20250814T203732Z_preds.csv",
+      "linear_model": "Models\\registry\\linear_hd3_20250814T203931Z.joblib",
+      "holdout_days": "90"
+    }
+  },
+  "holdout_days": 90
+}

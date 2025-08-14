@@ -1,0 +1,18 @@
+{
+  "horizon": "hd2",
+  "created_utc": "20250814T214913Z",
+  "model_path": "Models\\registry\\lgb_hd2_20250814T214913Z.txt",
+  "metrics": {
+    "rmse": 23.0027823027317,
+    "mae": 18.435156007674358,
+    "r2": 0.0973525712372687,
+    "mape_pct": 35.88244651611671,
+    "acc_category": 0.6555555555555556,
+    "acc_within_15": 0.45555555555555555
+  },
+  "predictions_path": "Models\\registry\\lgb_hd2_20250814T214913Z_preds.csv",
+  "feature_importance_registry": "Models\\registry\\lgb_hd2_20250814T214913Z_feature_importance.csv",
+  "feature_importance_lgb": "EDA\\lightgbm_output\\feature_importance_hd2.csv",
+  "library": "lightgbm",
+  "lightgbm_version": "4.6.0"
+}

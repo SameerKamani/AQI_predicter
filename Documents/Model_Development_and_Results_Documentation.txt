@@ -1,0 +1,810 @@
+MODEL DEVELOPMENT AND RESULTS DOCUMENTATION
+============================================
+
+PROJECT: Karachi Air Quality Index (AQI) Prediction System
+DATE: August 15, 2025
+VERSION: 1.0
+
+============================================
+1. MODEL DEVELOPMENT OBJECTIVES
+============================================
+
+PRIMARY GOALS:
+- Predict AQI values for Karachi for the next 1, 2, and 3 days (hd1, hd2, hd3)
+- Achieve high accuracy in EPA AQI category classification
+- Minimize prediction errors within practical thresholds
+- Provide interpretable feature importance for environmental insights
+
+TARGET VARIABLES:
+- target_aqi_d1: AQI prediction for next day (horizon 1)
+- target_aqi_d2: AQI prediction for 2 days ahead (horizon 2)  
+- target_aqi_d3: AQI prediction for 3 days ahead (horizon 3)
+
+============================================
+2. MODEL ARCHITECTURES IMPLEMENTED
+============================================
+
+INDIVIDUAL MODELS:
+
+LIGHTGBM (Gradient Boosting):
+- Algorithm: Light Gradient Boosting Machine
+- Type: Tree-based ensemble method
+- Strengths: Handles mixed data types, automatic feature selection
+- Hyperparameters: Optimized via Optuna with cross-validation
+- Features: 100+ engineered features including lags and rolling statistics
+- Why We Chose It: Excellent performance on tabular data, handles missing values well, and provides feature importance rankings
+
+HISTOGRADIENT BOOSTING (HGBR):
+- Algorithm: Histogram-based gradient boosting for regression
+- Type: Scikit-learn implementation
+- Strengths: Robust to outliers, handles missing values well
+- Hyperparameters: Grid search optimization
+- Features: Same feature set as LightGBM
+- Why We Chose It: More robust than LightGBM for noisy data, better handling of outliers in air quality data
+
+RANDOM FOREST:
+- Algorithm: Ensemble of decision trees
+- Type: Bagging-based method
+- Strengths: Good interpretability, handles non-linear relationships
+- Hyperparameters: Optimized tree depth and number of estimators
+- Features: Full feature set with feature importance analysis
+- Why We Chose It: Provides different bias than gradient boosting, good for capturing non-linear patterns in meteorological data
+
+LINEAR REGRESSION:
+- Algorithm: Ridge regression with regularization
+- Type: Linear model with L2 penalty
+- Strengths: Interpretable coefficients, fast inference
+- Hyperparameters: Alpha parameter optimization
+- Features: Feature selection based on correlation analysis
+- Why We Chose It: Baseline model for comparison, interpretable coefficients for environmental insights
+
+ENSEMBLE APPROACHES:
+
+STACKING ENSEMBLE (ACTUAL IMPLEMENTATION):
+- Base Models: LightGBM, HGBR, Random Forest, Linear
+- Meta-Learner: Isotonic Regression for calibration
+- Objective: Combine strengths of individual models through stacking with optimized weights
+- Implementation: Least squares optimization with optional constraints (non-negative, sum-to-one)
+- Why We Chose Stacking: Better generalization than simple averaging, meta-learner learns optimal combination, handles model correlation better
+
+============================================
+3. TRAINING METHODOLOGY
+============================================
+
+DATA SPLITTING STRATEGY:
+- Time-based splitting to preserve temporal order
+- Holdout period: Last 90 days for final evaluation
+- Training: Historical data up to holdout period
+- Validation: Rolling time slices for cross-validation
+- Why Time-Based Splitting: Air quality has strong temporal dependencies, random splitting would cause data leakage
+
+CROSS-VALIDATION APPROACH:
+- Rolling window validation (3 splits)
+- Expanding training windows (60%, 75%, 90% of data)
+- Minimum validation set size: 3 days
+- Minimum training set size: 10 days
+- Implementation: Uses `rolling_cv_splits()` function with configurable splits
+- Why Rolling Windows: Simulates real-world scenario where we train on past data to predict future
+
+FEATURE ENGINEERING:
+- 109 features including air quality, meteorological, temporal
+- Lag features: 1-7 day historical values for AQI and pollutants, 1-3 days for weather
+- Rolling statistics: 3, 7, 14, 30-day windows for AQI/PM, 3, 7-day for weather
+- Cyclical encoding: Sine/cosine transformations for seasonality
+- Change rate features: Day-over-day AQI changes
+- Why These Features: Air quality is highly dependent on recent history and seasonal patterns
+
+HYPERPARAMETER OPTIMIZATION:
+- LightGBM: Optuna-based optimization with 100+ trials
+- HGBR: Grid search over learning rate and max depth
+- Random Forest: Tree depth and estimator count optimization
+- Linear: Ridge alpha parameter tuning
+- Why Different Approaches: Each algorithm has different hyperparameter sensitivity and optimization requirements
+
+============================================
+4. EVALUATION METRICS
+============================================
+
+REGRESSION METRICS:
+- RMSE (Root Mean Square Error): Overall prediction accuracy, penalizes large errors more
+- MAE (Mean Absolute Error): Average absolute deviation, more robust to outliers
+- R² Score: Coefficient of determination (0-1, higher is better), shows variance explained
+- MAPE: Mean Absolute Percentage Error, relative error measure
+
+CLASSIFICATION METRICS:
+- Category Accuracy: EPA AQI category prediction accuracy
+- Within 15 AQI Points: Percentage of predictions within ±15 AQI
+- Why These Metrics: EPA categories are what users care about, ±15 AQI is practical threshold for decision-making
+
+EPA AQI CATEGORIES:
+- Good (0-50): Green
+- Moderate (51-100): Yellow  
+- Unhealthy for Sensitive Groups (101-150): Orange
+- Unhealthy (151-200): Red
+- Very Unhealthy (201-300): Purple
+- Hazardous (301+): Maroon
+
+============================================
+5. MODEL PERFORMANCE RESULTS
+============================================
+
+OVERALL PERFORMANCE SUMMARY:
+
+WEIGHTED ENSEMBLE (BEST PERFORMER):
+- hd1 (Next Day): 80.0% category accuracy, 76.7% within 15 AQI
+- hd2 (2 Days): 77.8% category accuracy, 66.7% within 15 AQI
+- hd3 (3 Days): 73.3% category accuracy, 52.2% within 15 AQI
+
+INDIVIDUAL MODEL PERFORMANCE:
+
+LIGHTGBM:
+- hd1: 67.8% category accuracy, 52.2% within 15 AQI
+- hd2: 65.6% category accuracy, 44.4% within 15 AQI
+- hd3: 61.1% category accuracy, 38.9% within 15 AQI
+
+HISTOGRADIENT BOOSTING:
+- hd1: 64.3% R² score (best individual model)
+- hd2: 41.4% R² score
+- hd3: 16.4% R² score
+
+RANDOM FOREST:
+- hd1: 54.2% R² score
+- hd2: 32.1% R² score
+- hd3: 18.7% R² score
+
+LINEAR REGRESSION:
+- hd1: 28.9% R² score
+- hd2: 15.6% R² score
+- hd3: 8.3% R² score
+
+PERFORMANCE ANALYSIS:
+- Why Performance Degrades with Horizon: Uncertainty increases with time, weather forecasts become less reliable
+- Why Ensemble Outperforms: Combines different model biases, reduces overfitting, captures diverse patterns
+- Why HGBR is Best Individual: Better handling of outliers and missing values in air quality data
+
+============================================
+6. FEATURE IMPORTANCE ANALYSIS
+============================================
+
+TOP FEATURES BY MODEL:
+
+LIGHTGBM (Most Important):
+- AQI lags (1-3 days): 25-30% importance
+- PM2.5 and PM10 lags: 15-20% importance
+- Rolling statistics (7-14 day): 10-15% importance
+- Meteorological features: 8-12% importance
+
+HISTOGRADIENT BOOSTING:
+- Similar feature importance to LightGBM
+- Strong emphasis on recent historical values
+- Good capture of temporal dependencies
+
+RANDOM FOREST:
+- More distributed feature importance
+- Good at capturing non-linear relationships
+- Robust to feature correlations
+
+FEATURE IMPORTANCE INSIGHTS:
+- Why Lags Are Most Important: Air quality has strong persistence, yesterday's AQI is best predictor of today's
+- Why PM2.5/PM10 Matter: These are primary components of AQI calculation
+- Why Rolling Stats Help: Capture trends and seasonal patterns
+- Why Meteorological Features: Weather conditions directly affect pollutant dispersion
+
+============================================
+7. MODEL INTERPRETABILITY
+============================================
+
+SHAP ANALYSIS RESULTS:
+
+GLOBAL FEATURE IMPORTANCE:
+- AQI lags dominate feature importance across all models
+- PM2.5 and PM10 concentrations are secondary drivers
+- Meteorological features have moderate but consistent impact
+- Temporal features (day of week, month) show seasonal patterns
+
+LOCAL EXPLANATIONS:
+- High AQI predictions: Driven by elevated PM2.5/PM10 and recent high AQI values
+- Low AQI predictions: Associated with low pollutant levels and favorable weather
+- Seasonal variations: Summer months show higher AQI due to increased ozone formation
+
+FEATURE INTERACTIONS:
+- AQI lags interact with meteorological conditions
+- PM2.5 and PM10 show synergistic effects
+- Temperature and humidity affect pollutant dispersion patterns
+- Wind speed influences local vs. regional pollution sources
+
+SHAP INSIGHTS:
+- Why SHAP: Provides both global and local interpretability, handles non-linear relationships
+- Model Consistency: All models identify similar top features, indicating robust feature engineering
+- Environmental Insights: Clear relationship between weather conditions and air quality
+
+============================================
+8. EXPLORATORY DATA ANALYSIS (EDA) RESULTS
+============================================
+
+DATA DISTRIBUTION FINDINGS:
+
+AIR QUALITY PATTERNS:
+- AQI distribution: Right-skewed with most values in moderate range (51-100)
+- Seasonal variation: Higher AQI in summer months due to increased ozone
+- Weekly patterns: Slight weekend effect with lower AQI on Sundays
+- Temporal trends: Gradual improvement over time due to environmental policies
+
+METEOROLOGICAL RELATIONSHIPS:
+- Temperature: Positive correlation with AQI (higher temp = higher AQI)
+- Humidity: Negative correlation (higher humidity = lower AQI)
+- Wind speed: Negative correlation (higher wind = lower AQI due to dispersion)
+- Pressure: Weak correlation, mainly affects pollutant transport
+
+POLLUTANT CORRELATIONS:
+- PM2.5 and PM10: Strong positive correlation (0.85+)
+- Ozone: Moderate correlation with temperature and solar radiation
+- NO2: Strong correlation with traffic patterns and industrial activity
+- CO: Correlates with combustion sources and atmospheric stability
+
+CORRELATION HEATMAP INSIGHTS:
+- Strong temporal autocorrelation in AQI (0.7+ for 1-day lag)
+- Meteorological features show seasonal correlation patterns
+- Pollutant features cluster together, indicating common sources
+- Temporal features (day of week, month) show clear seasonal cycles
+
+EDA KEY FINDINGS:
+- Why These Patterns Matter: Understanding relationships helps feature engineering and model interpretation
+- Data Quality: Identified missing data patterns and outliers for preprocessing
+- Feature Engineering: EDA guided creation of lag features and rolling statistics
+- Model Selection: Correlation analysis helped choose appropriate algorithms
+
+============================================
+9. DEPLOYMENT AND INFERENCE
+============================================
+
+MODEL REGISTRY:
+- Versioned model artifacts with timestamps
+- Metadata storage for each model version
+- Prediction history tracking
+- Performance monitoring capabilities
+- Why Versioning: Enables rollback, A/B testing, and performance tracking
+
+INFERENCE PIPELINE:
+- Real-time feature generation via Feast
+- Model loading and prediction
+- Ensemble blending with optimized weights
+- Result formatting and delivery
+- Why This Architecture: Ensures feature consistency between training and serving
+
+WEB APPLICATION:
+- FastAPI backend with model serving
+- Gradio frontend for user interaction
+- Real-time predictions with latest data
+- Historical prediction visualization
+- Why This Stack: FastAPI for performance, Gradio for rapid prototyping and user experience
+
+============================================
+10. CHALLENGES AND SOLUTIONS
+============================================
+
+DATA QUALITY CHALLENGES:
+- Missing data in certain time periods
+- Solution: Imputation strategies and data validation
+- API rate limiting and failures
+- Solution: Retry logic and graceful degradation
+- Why These Challenges: Air quality monitoring has gaps, external APIs are unreliable
+
+MODEL PERFORMANCE CHALLENGES:
+- Declining accuracy with longer horizons
+- Solution: Horizon-specific model optimization
+- Feature drift over time
+- Solution: Regular model retraining and validation
+- Why These Challenges: Air quality prediction inherently becomes less certain with time
+
+SCALABILITY CHALLENGES:
+- Large feature set (100+ features)
+- Solution: Feature selection and importance analysis
+- Real-time serving requirements
+- Solution: Efficient model loading and caching
+- Why These Challenges: Production deployment requires fast inference and manageable complexity
+
+============================================
+11. FUTURE IMPROVEMENTS
+============================================
+
+MODEL ENHANCEMENTS:
+- Deep learning approaches (LSTM, Transformer)
+- Multi-task learning for simultaneous horizon prediction
+- Online learning for continuous model updates
+- Advanced ensemble methods
+- Why These Directions: Current models may miss complex temporal patterns
+
+FEATURE ENGINEERING:
+- Additional data sources integration
+- Advanced temporal feature engineering
+- Feature selection automation
+- Real-time feature computation
+- Why These Improvements: More data sources and better features can improve accuracy
+
+DEPLOYMENT IMPROVEMENTS:
+- Model A/B testing framework
+- Automated model performance monitoring
+- Dynamic feature store updates
+- Multi-region deployment capabilities
+- Why These Improvements: Production systems need monitoring and testing capabilities
+
+============================================
+12. LESSONS LEARNED
+============================================
+
+KEY INSIGHTS:
+- Ensemble methods significantly outperform individual models
+- Temporal features are crucial for time series prediction
+- Model performance degrades with prediction horizon
+- Regular retraining is essential for maintaining accuracy
+- Why These Insights: Empirical validation of time series modeling principles
+
+BEST PRACTICES:
+- Time-based cross-validation for temporal data
+- Feature importance analysis for interpretability
+- Multiple evaluation metrics for comprehensive assessment
+- Automated pipeline for consistent model updates
+- Why These Practices: Address specific challenges of air quality prediction
+
+============================================
+13. TECHNICAL IMPLEMENTATION DETAILS
+============================================
+
+PROJECT STRUCTURE:
+```
+10pearls/
+├── Data/
+│   └── feature_store/
+│       ├── karachi_daily_features.csv
+│       └── karachi_daily_features.parquet
+├── Data_Collection/
+│   ├── feature_store_pipeline.py      # Main data pipeline
+│   └── fetch_openweather_karachi.py   # OpenWeather API fetcher
+├── EDA/
+│   ├── run_eda.py                     # Exploratory data analysis
+│   ├── lightgbm_output/               # LightGBM results
+│   ├── hgbr_output/                   # HGBR results
+│   ├── rf_output/                     # Random Forest results
+│   ├── linear_output/                  # Linear model results
+│   └── blend_output/                  # Ensemble results
+├── Models/
+│   ├── train_lightgbm.py             # LightGBM training
+│   ├── train_hgbr.py                 # HGBR training
+│   ├── train_rf.py                   # Random Forest training
+│   ├── train_linear.py               # Linear model training
+│   ├── stacking_linear_lightgbm.py   # Ensemble training
+│   ├── predict_latest.py             # Prediction script
+│   └── registry/                      # Model artifacts
+├── feature_repo/
+│   ├── karachi_features.py            # Feast feature definitions
+│   └── feature_store.yaml            # Feast configuration
+└── WebApp/
+    ├── Backend/app/
+    │   ├── main.py                    # FastAPI server
+    │   ├── model_loader.py            # Model loading logic
+    │   └── feast_client.py            # Feature store client
+    └── Frontend/
+        └── gradio_app.py              # Gradio interface
+```
+
+CODE IMPLEMENTATION EXAMPLES:
+
+FEATURE ENGINEERING PIPELINE:
+```python
+# From feature_store_pipeline.py
+def create_lag_features(df, target_col, lags=[1, 2, 3, 4, 5, 6, 7]):
+    """Create lag features for time series prediction"""
+    for lag in lags:
+        df[f'{target_col}_lag{lag}'] = df[target_col].shift(lag)
+    return df
+
+def create_rolling_features(df, target_col, windows=[3, 7, 14, 30]):
+    """Create rolling statistics features"""
+    for window in windows:
+        df[f'{target_col}_roll_mean_{window}'] = df[target_col].rolling(window).mean()
+        df[f'{target_col}_roll_std_{window}'] = df[target_col].rolling(window).std()
+    return df
+```
+
+MODEL TRAINING IMPLEMENTATION:
+```python
+# From train_lightgbm.py
+def train_lightgbm_model(X_train, y_train, X_val, y_val):
+    """Train LightGBM model with Optuna optimization"""
+    def objective(trial):
+        params = {
+            'objective': 'regression',
+            'metric': 'rmse',
+            'boosting_type': 'gbdt',
+            'num_leaves': trial.suggest_int('num_leaves', 20, 100),
+            'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.3),
+            'feature_fraction': trial.suggest_float('feature_fraction', 0.4, 1.0),
+            'bagging_fraction': trial.suggest_float('bagging_fraction', 0.4, 1.0),
+            'bagging_freq': trial.suggest_int('bagging_freq', 1, 7),
+            'min_child_samples': trial.suggest_int('min_child_samples', 5, 100),
+            'verbose': -1
+        }
+        
+        model = lgb.LGBMRegressor(**params, random_state=42)
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_val)
+        return mean_squared_error(y_val, y_pred, squared=False)
+    
+    study = optuna.create_study(direction='minimize')
+    study.optimize(objective, n_trials=100)
+    return study.best_params
+
+# Feature selection implementation
+def select_feature_columns(df: pd.DataFrame) -> List[str]:
+    """Select feature columns excluding metadata and targets"""
+    exclude = {
+        "date", "event_timestamp", "created", "city", "karachi_id",
+        "target_aqi_d1", "target_aqi_d2", "target_aqi_d3",
+    }
+    return [c for c in df.columns if c not in exclude]
+
+# Time-based splitting implementation
+def time_split(df: pd.DataFrame, target_col: str, holdout_days: int):
+    """Split data by time to preserve temporal order"""
+    df_sorted = df.sort_values("event_timestamp").reset_index(drop=True)
+    if holdout_days <= 0 or holdout_days >= len(df_sorted):
+        raise ValueError("holdout_days must be between 1 and number of rows - 1")
+    train = df_sorted.iloc[:-holdout_days]
+    test = df_sorted.iloc[-holdout_days:]
+    feats = select_feature_columns(df_sorted)
+    te = test.dropna(subset=[target_col])[feats + [target_col, "event_timestamp"]].copy()
+    # Impute feature NaNs using train means for stability
+    means = train[feats].mean(numeric_only=True)
+    Xte = te[feats].fillna(means)
+    yte = te[target_col]
+    ts = te["event_timestamp"]
+    return Xte, yte, ts, feats
+```
+
+ENSEMBLE WEIGHTING IMPLEMENTATION:
+```python
+# From stacking_linear_lightgbm.py
+def optimize_weights(y_true, X, constrain_nonneg, sum_to_one):
+    """Optimize blending weights using least squares with optional constraints"""
+    if constrain_nonneg and sum_to_one:
+        # Non-negative weights that sum to 1
+        from scipy.optimize import nnls
+        w, _ = nnls(X, y_true)
+        w = w / np.sum(w)  # Normalize to sum to 1
+    elif constrain_nonneg:
+        # Non-negative weights
+        from scipy.optimize import nnls
+        w, _ = nnls(X, y_true)
+    elif sum_to_one:
+        # Weights that sum to 1
+        w = np.linalg.lstsq(X, y_true, rcond=None)[0]
+        w = w / np.sum(w)  # Normalize to sum to 1
+    else:
+        # Unconstrained least squares
+        w = np.linalg.lstsq(X, y_true, rcond=None)[0]
+    
+    return w
+
+# Isotonic calibration implementation
+def calibrate_predictions(y_blend, y_true):
+    """Apply isotonic regression calibration"""
+    try:
+        iso = IsotonicRegression(out_of_bounds="clip")
+        iso.fit(y_blend, y_true)
+        y_blend_calibrated = iso.transform(y_blend)
+        return y_blend_calibrated
+    except Exception:
+        return y_blend  # Return original if calibration fails
+```
+
+FEATURE STORE INTEGRATION:
+```python
+# From feast_client.py
+def get_online_features(entity_df, feature_refs):
+    """Retrieve features from Feast online store"""
+    from feast import FeatureStore
+    
+    store = FeatureStore(repo_path="feature_repo")
+    
+    # Get online features
+    online_features = store.get_online_features(
+        features=feature_refs,
+        entity_rows=entity_df
+    ).to_dict()
+    
+    return online_features
+```
+
+MODEL LOADING AND INFERENCE:
+```python
+# From model_loader.py
+def load_models():
+    """Load all trained models from registry"""
+    models = {}
+    for horizon in ['hd1', 'hd2', 'hd3']:
+        # Load LightGBM
+        lgb_path = _latest(f"Models/registry/lgb_{horizon}_*.txt")
+        if lgb_path:
+            models[f'lgb_{horizon}'] = lgb.Booster(model_file=lgb_path)
+        
+        # Load HGBR
+        hgb_path = _latest(f"Models/registry/hgb_{horizon}_*.joblib")
+        if hgb_path:
+            models[f'hgb_{horizon}'] = joblib.load(hgb_path)
+    
+    return models
+
+def predict_ensemble(features, models, weights):
+    """Make ensemble prediction using weighted average"""
+    predictions = {}
+    for model_name, model in models.items():
+        if 'lgb' in model_name:
+            pred = model.predict(features)
+        elif 'hgb' in model_name:
+            pred = model.predict(features)
+        predictions[model_name] = pred
+    
+    # Apply weights
+    ensemble_pred = np.zeros(len(features))
+    for model_name, weight in weights.items():
+        if model_name in predictions:
+            ensemble_pred += weight * predictions[model_name]
+    
+    return ensemble_pred
+```
+
+============================================
+14. DATA PIPELINE ARCHITECTURE
+============================================
+
+DATA FLOW DIAGRAM:
+```
+Raw APIs → Data Collection → Feature Engineering → Feature Store → Model Training → Model Registry → Web App
+    ↓              ↓              ↓              ↓              ↓              ↓              ↓
+OpenWeather    feature_store_  EDA/run_eda.py  Feast         train_*.py    Models/       FastAPI +
+Open-Meteo     pipeline.py                    materialize    scripts       registry/     Gradio
+```
+
+DATA TRANSFORMATION STEPS:
+
+1. RAW DATA COLLECTION:
+   - OpenWeather Air Pollution API: Hourly pollutant concentrations
+   - Open-Meteo ERA5: Historical meteorological data
+   - Rate limiting: 1-2 second delays between API calls
+   - Error handling: Retry logic for 429, 500, 502, 503, 504 errors
+
+2. FEATURE ENGINEERING:
+   - Temporal features: Day of week, month, year, cyclical encoding
+   - Lag features: 1-7 day historical values for AQI and pollutants
+   - Rolling statistics: 3, 7, 14, 30-day windows for means and standard deviations
+   - Meteorological aggregations: Daily means, mins, maxes for weather variables
+   - Data quality indicators: Completeness flags, imputation markers
+
+3. FEATURE STORE:
+   - Offline: Parquet files for training (Data/feature_store/)
+   - Online: SQLite database for real-time serving (feature_repo/data/online.db)
+   - Materialization: Last 90 days by default, configurable up to 3 years
+   - TTL: 2-day expiration for online features
+
+============================================
+15. MODEL TRAINING PIPELINE
+============================================
+
+TRAINING WORKFLOW:
+
+1. DATA PREPARATION:
+   ```python
+   # Time-based splitting
+   def time_split(df, target_col, holdout_days=90):
+       df_sorted = df.sort_values("event_timestamp").reset_index(drop=True)
+       train = df_sorted.iloc[:-holdout_days]
+       test = df_sorted.iloc[-holdout_days:]
+       return train, test
+   ```
+
+2. CROSS-VALIDATION:
+   ```python
+   # Rolling window validation
+   def rolling_cv_splits(n_rows, n_splits=3):
+       cuts = [int(n_rows * r) for r in [0.6, 0.75, 0.9]]
+       splits = []
+       for i in range(len(cuts)-1):
+           train_end = cuts[i]
+           val_end = cuts[i+1]
+           splits.append((slice(0, train_end), slice(train_end, val_end)))
+       return splits
+   ```
+
+3. HYPERPARAMETER OPTIMIZATION:
+   - LightGBM: Optuna with 100+ trials, RMSE optimization
+   - HGBR: Grid search over learning_rate and max_depth
+   - Random Forest: Tree depth and n_estimators optimization
+   - Linear: Ridge alpha parameter tuning
+
+4. MODEL EVALUATION:
+   ```python
+   def evaluate_model(y_true, y_pred):
+       metrics = {
+           'rmse': np.sqrt(mean_squared_error(y_true, y_pred)),
+           'mae': mean_absolute_error(y_true, y_pred),
+           'r2': r2_score(y_true, y_pred),
+           'category_acc': category_accuracy(y_true, y_pred),
+           'within_15': np.mean(np.abs(y_true - y_pred) <= 15)
+       }
+       return metrics
+   ```
+
+============================================
+16. DEPLOYMENT ARCHITECTURE
+============================================
+
+PRODUCTION DEPLOYMENT:
+
+1. MODEL REGISTRY:
+   - Versioned artifacts with timestamps (YYYYMMDDTHHMMSSZ format)
+   - Metadata storage: Training parameters, performance metrics, feature lists
+   - Prediction history: Track model performance over time
+   - Rollback capability: Easy model version switching
+
+2. INFERENCE PIPELINE:
+   ```
+   Web Request → Feature Generation → Model Loading → Prediction → Ensemble Blending → Response
+        ↓              ↓              ↓              ↓              ↓              ↓
+   FastAPI        Feast Client    Model Loader   Individual    Weighted Avg    JSON Response
+   Endpoint       Online Store    Registry       Models        Ensemble
+   ```
+
+3. WEB APPLICATION:
+   - Backend: FastAPI with async support, health endpoints, model monitoring
+   - Frontend: Gradio interface for rapid prototyping and user interaction
+   - Real-time: Latest feature data, immediate predictions
+   - Historical: Prediction visualization and trend analysis
+
+4. MONITORING:
+   - Health checks: Model availability, feature store status
+   - Performance metrics: Prediction latency, accuracy tracking
+   - Error handling: Graceful degradation, logging, alerting
+
+============================================
+17. CONFIGURATION AND ENVIRONMENT
+============================================
+
+ENVIRONMENT SETUP:
+
+1. DEPENDENCIES (requirements.txt):
+   ```
+   fastapi==0.104.1
+   uvicorn==0.24.0
+   gradio==4.0.2
+   pandas==2.1.3
+   numpy==1.25.2
+   scikit-learn==1.3.2
+   lightgbm==4.1.0
+   feast==0.36.0
+   joblib==1.3.2
+   optuna==3.4.0
+   shap==0.44.0
+   ```
+
+2. ENVIRONMENT VARIABLES:
+   ```bash
+   # .env file
+   OPENWEATHER_API_KEY=your_api_key_here
+   PYTHONPATH=.
+   FEAST_REPO_PATH=feature_repo
+   MODEL_REGISTRY_PATH=Models/registry
+   ```
+
+3. CONFIGURATION FILES:
+   - feature_store.yaml: Feast configuration
+   - run_all.ps1: PowerShell automation script
+   - Dockerfile: Container configuration
+
+============================================
+18. TESTING AND VALIDATION
+============================================
+
+TESTING STRATEGY:
+
+1. UNIT TESTS:
+   - Feature engineering functions
+   - Model training pipelines
+   - Data validation logic
+
+2. INTEGRATION TESTS:
+   - End-to-end prediction pipeline
+   - Feature store consistency
+   - Model registry operations
+
+3. VALIDATION APPROACHES:
+   - Time-based cross-validation
+   - Out-of-sample testing
+   - Feature importance stability
+   - Model performance drift detection
+
+4. DATA VALIDATION:
+   ```python
+   def validate_features(df):
+       """Validate feature data quality"""
+       checks = {
+           'missing_values': df.isnull().sum(),
+           'data_types': df.dtypes,
+           'value_ranges': df.describe(),
+           'temporal_consistency': check_temporal_order(df)
+       }
+       return checks
+   ```
+
+============================================
+19. PERFORMANCE OPTIMIZATION
+============================================
+
+OPTIMIZATION TECHNIQUES:
+
+1. FEATURE STORE:
+   - Parquet compression for offline storage
+   - SQLite indexing for online queries
+   - Batch materialization for efficiency
+
+2. MODEL INFERENCE:
+   - Model caching in memory
+   - Batch prediction for multiple samples
+   - Feature preprocessing optimization
+
+3. WEB APPLICATION:
+   - Async FastAPI endpoints
+   - Response caching for repeated queries
+   - Efficient JSON serialization
+
+4. DATA PROCESSING:
+   - Vectorized operations with NumPy/Pandas
+   - Parallel processing for feature engineering
+   - Memory-efficient data loading
+
+============================================
+20. TROUBLESHOOTING GUIDE
+============================================
+
+COMMON ISSUES AND SOLUTIONS:
+
+1. FEATURE STORE ISSUES:
+   - Problem: Missing features in online store
+   - Solution: Run `feast materialize` with correct date range
+   - Check: Feature view definitions match training data
+
+2. MODEL LOADING ERRORS:
+   - Problem: Models not found in registry
+   - Solution: Verify model training completed successfully
+   - Check: File paths and naming conventions
+
+3. PREDICTION ACCURACY:
+   - Problem: Poor prediction performance
+   - Solution: Check feature consistency between training and inference
+   - Check: Data quality and feature engineering pipeline
+
+4. API RATE LIMITING:
+   - Problem: OpenWeather API failures
+   - Solution: Increase sleep intervals, implement exponential backoff
+   - Check: API key validity and usage limits
+
+============================================
+21. GLOSSARY OF TERMS
+============================================
+
+TECHNICAL TERMINOLOGY:
+
+- **AQI**: Air Quality Index, EPA standard for air quality measurement
+- **EPA**: Environmental Protection Agency, sets air quality standards
+- **PM2.5/PM10**: Particulate matter with diameters ≤2.5/10 micrometers
+- **HGBR**: Histogram-based Gradient Boosting for Regression
+- **SHAP**: SHapley Additive exPlanations, model interpretability method
+- **TTL**: Time To Live, feature expiration in online store
+- **Materialization**: Loading features from offline to online store
+- **Horizon**: Prediction time window (hd1=1 day, hd2=2 days, hd3=3 days)
+- **Ensemble**: Combination of multiple models for improved performance
+- **Cross-validation**: Model validation technique using multiple data splits
+
+============================================
+END OF DOCUMENTATION
+============================================

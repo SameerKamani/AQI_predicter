@@ -1,0 +1,936 @@
+WEBAPP DEPLOYMENT AND CI/CD DOCUMENTATION
+============================================
+
+PROJECT: Karachi Air Quality Index (AQI) Prediction System
+DATE: August 15, 2025
+VERSION: 1.0
+
+============================================
+1. WEBAPP ARCHITECTURE OVERVIEW
+============================================
+
+ARCHITECTURE PATTERN: FastAPI Backend + Gradio Frontend Integration
+
+OVERALL STRUCTURE:
+```
+WebApp/
+├── Backend/
+│   ├── app/
+│   │   ├── main.py              # FastAPI application server
+│   │   ├── model_loader.py      # Model registry and prediction logic
+│   │   ├── feast_client.py      # Feature store integration
+│   │   └── __init__.py
+│   └── __init__.py
+├── Frontend/
+│   └── gradio_app.py            # Gradio interface (mounted in FastAPI)
+└── __init__.py
+```
+
+WHY THIS ARCHITECTURE:
+1. **FastAPI Backend**: High-performance async API with automatic OpenAPI documentation
+2. **Gradio Integration**: Rapid UI prototyping and user interaction
+3. **Unified Deployment**: Single container serving both API and UI
+4. **Scalability**: Async support for high-concurrency prediction requests
+
+============================================
+2. BACKEND IMPLEMENTATION (FastAPI)
+============================================
+
+MAIN APPLICATION SERVER (main.py):
+
+CORE COMPONENTS:
+```python
+# FastAPI app configuration
+app = FastAPI(title="AQI Prediction Service", version="1.0.0")
+
+# CORS middleware for cross-origin requests
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+```
+
+ENVIRONMENT CONFIGURATION:
+```python
+# Environment variable configuration with sensible defaults
+_ROOT = str(Path(__file__).resolve().parents[3])  # Repository root
+FEAST_REPO_PATH = _get_env_path("FEAST_REPO_PATH", 
+                                os.path.join(_ROOT, "feature_repo"))
+FEATURES_PARQUET = _get_env_path("FEATURES_PARQUET", 
+                                 os.path.join(_ROOT, "Data", "feature_store", 
+                                            "karachi_daily_features.parquet"))
+REGISTRY_DIR = _get_env_path("REGISTRY_DIR", 
+                             os.path.join(_ROOT, "Models", "registry"))
+```
+
+STARTUP EVENTS:
+```python
+@app.on_event("startup")
+def _startup() -> None:
+    # Initialize model registry on startup for low-latency requests
+    model_loader.initialize_registry(REGISTRY_DIR)
+```
+
+API ENDPOINTS:
+
+1. **Health Check Endpoint**:
+```python
+@app.get("/health")
+def health() -> Dict[str, Any]:
+    latest_ts: Optional[str] = None
+    try:
+        row = feast_client.get_latest_offline_row(FEATURES_PARQUET)
+        if row is not None and "event_timestamp" in row.index:
+            latest_ts = str(row["event_timestamp"])
+    except Exception:
+        latest_ts = None
+
+    artifacts = model_loader.current_artifacts_summary()
+    return {
+        "status": "ok",
+        "latest_feature_timestamp": latest_ts,
+        "artifacts": artifacts,
+    }
+```
+
+2. **Latest Features Endpoint**:
+```python
+@app.get("/features/latest")
+def features_latest() -> Dict[str, Any]:
+    try:
+        row = feast_client.get_latest_features(FEAST_REPO_PATH, FEATURES_PARQUET)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to load features: {e}")
+    if row is None:
+        raise HTTPException(status_code=404, detail="No features available")
+    
+    # Convert Series to dict for JSON serialization
+    return {"features": {k: (None if pd.isna(v) else 
+                            (str(v) if hasattr(v, "isoformat") else v)) 
+                        for k, v in row.to_dict().items()}}
+```
+
+3. **Prediction Endpoint**:
+```python
+@app.get("/predict/latest")
+def predict_latest() -> Dict[str, Any]:
+    # Get latest features from Feast
+    row = feast_client.get_latest_features(FEAST_REPO_PATH, FEATURES_PARQUET)
+    if row is None:
+        raise HTTPException(status_code=404, detail="No features available for prediction")
+    
+    try:
+        # Make prediction using loaded models
+        pred = model_loader.predict_all_from_series(row)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Prediction failed: {e}")
+    
+    return pred
+```
+
+GRADIO INTEGRATION:
+```python
+# Mount Gradio app at /ui endpoint
+if gr is not None:
+    # Create Gradio interface
+    demo = gr.Interface(
+        fn=predict_latest,
+        inputs=[],
+        outputs=gr.JSON(),
+        title="Karachi AQI Prediction",
+        description="Get real-time air quality predictions for Karachi"
+    )
+    
+    # Mount to FastAPI
+    app = gr.mount_gradio_app(app, demo, path="/ui")
+```
+
+============================================
+3. FRONTEND IMPLEMENTATION (Gradio)
+============================================
+
+GRADIO INTERFACE DESIGN:
+
+CURRENT IMPLEMENTATION:
+```python
+# WebApp/Frontend/gradio_app.py
+# This file is intentionally minimal; the Gradio app is mounted from FastAPI
+# You can extend this later with a standalone Gradio launcher if needed.
+```
+
+INTEGRATION APPROACH:
+- **Mounted Integration**: Gradio app is mounted directly into FastAPI at `/ui` endpoint
+- **Unified Deployment**: Single server serves both API and UI
+- **Extensible Design**: Frontend can be enhanced independently
+
+FUTURE ENHANCEMENTS:
+```python
+# Example of enhanced Gradio interface
+import gradio as gr
+import plotly.graph_objects as go
+
+def create_aqi_dashboard():
+    """Create comprehensive AQI prediction dashboard"""
+    
+    def predict_and_visualize():
+        # Get prediction from FastAPI endpoint
+        import requests
+        response = requests.get("http://localhost:8000/predict/latest")
+        data = response.json()
+        
+        # Create visualization
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=['Next Day', '2 Days', '3 Days'],
+            y=[data['blend']['hd1'], data['blend']['hd2'], data['blend']['hd3']],
+            mode='lines+markers',
+            name='AQI Prediction'
+        ))
+        fig.update_layout(title='Karachi AQI Forecast', yaxis_title='AQI')
+        
+        return fig, data
+    
+    # Create interface
+    iface = gr.Interface(
+        fn=predict_and_visualize,
+        inputs=[],
+        outputs=[gr.Plot(), gr.JSON()],
+        title="Karachi AQI Prediction Dashboard",
+        description="Real-time air quality forecasting with visualizations"
+    )
+    
+    return iface
+```
+
+============================================
+4. DOCKER CONFIGURATION
+============================================
+
+DOCKERFILE ANALYSIS:
+
+BASE IMAGE SELECTION:
+```dockerfile
+FROM python:3.11-slim
+```
+**Why Python 3.11-slim**: 
+- Latest stable Python version with security updates
+- Slim variant reduces image size (~40MB vs ~100MB)
+- Official image with regular security patches
+
+ENVIRONMENT VARIABLES:
+```dockerfile
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+```
+**Purpose**:
+- `PYTHONDONTWRITEBYTECODE`: Prevents .pyc file creation
+- `PYTHONUNBUFFERED`: Ensures real-time log output
+- `PIP_NO_CACHE_DIR`: Reduces image size by not caching pip packages
+
+SYSTEM DEPENDENCIES:
+```dockerfile
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+```
+**Why libgomp1**: 
+- Required for LightGBM (OpenMP runtime)
+- `--no-install-recommends`: Minimizes package installation
+- `rm -rf /var/lib/apt/lists/*`: Reduces image size
+
+DEPENDENCY INSTALLATION:
+```dockerfile
+# Install python deps first for better layer caching
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+```
+**Layer Caching Strategy**:
+- Copy requirements.txt first for better Docker layer caching
+- `--no-cache-dir`: Reduces image size
+- Dependencies change less frequently than application code
+
+APPLICATION DEPLOYMENT:
+```dockerfile
+# Copy the application code
+COPY . .
+
+# Expose API port
+EXPOSE 8000
+
+# Default command
+CMD ["uvicorn", "WebApp.Backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+DOCKER BUILD AND RUN COMMANDS:
+```bash
+# Build the image
+docker build -t aqi-predictor .
+
+# Run the container
+docker run -p 8000:8000 \
+  -e OPENWEATHER_API_KEY=your_key_here \
+  -e FEAST_REPO_PATH=/app/feature_repo \
+  aqi-predictor
+
+# Run with volume mounts for development
+docker run -p 8000:8000 \
+  -v $(pwd)/feature_repo:/app/feature_repo \
+  -v $(pwd)/Models/registry:/app/Models/registry \
+  aqi-predictor
+```
+
+DOCKER OPTIMIZATION RECOMMENDATIONS:
+
+1. **Multi-stage Builds**:
+```dockerfile
+# Build stage
+FROM python:3.11-slim as builder
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --user -r requirements.txt
+
+# Runtime stage
+FROM python:3.11-slim
+WORKDIR /app
+COPY --from=builder /root/.local /root/.local
+COPY . .
+ENV PATH=/root/.local/bin:$PATH
+CMD ["uvicorn", "WebApp.Backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+2. **Security Enhancements**:
+```dockerfile
+# Create non-root user
+RUN useradd --create-home --shell /bin/bash app
+USER app
+WORKDIR /home/app
+
+# Copy application as non-root user
+COPY --chown=app:app . .
+```
+
+============================================
+5. GITHUB ACTIONS CI/CD WORKFLOWS
+============================================
+
+WORKFLOW OVERVIEW:
+
+1. **Features - Hourly Workflow** (`features-hourly.yml`)
+2. **Train - Daily Workflow** (`train-daily.yml`)
+
+FEATURES HOURLY WORKFLOW:
+
+TRIGGER CONFIGURATION:
+```yaml
+on:
+  schedule:
+    - cron: '0 * * * *'  # Every hour at minute 0
+  workflow_dispatch:      # Manual trigger capability
+```
+
+CONCURRENCY CONTROL:
+```yaml
+concurrency:
+  group: features-hourly
+  cancel-in-progress: true  # Cancel running jobs when new ones start
+```
+
+JOB STEPS:
+```yaml
+jobs:
+  build-features:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build features (today, append)
+        env:
+          OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
+        run: |
+          python Data_Collection/feature_store_pipeline.py \
+            --start "$(date -u +%Y-%m-%d)" \
+            --end   "$(date -u +%Y-%m-%d)" \
+            --impute_short_gaps \
+            --min_hours_per_day 16 \
+            --append
+
+      - name: Feast apply + materialize last 1 day
+        working-directory: feature_repo
+        shell: bash
+        run: |
+          feast apply
+          START=$(date -u -d "-1 day" +"%Y-%m-%dT%H:%M:%SZ")
+          END=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          feast materialize "$START" "$END"
+```
+
+FEATURE VALIDATION:
+```yaml
+- name: Quick sanity check
+  run: |
+    python - << 'PY'
+    import pandas as pd
+    df = pd.read_csv('Data/feature_store/karachi_daily_features.csv')
+    neg = {c:int((df[c]<0).sum()) for c in ['pm2_5_mean','pm10_mean','co_mean','no_mean','no2_mean','o3_mean','so2_mean','nh3_mean'] if c in df.columns}
+    print('NEGATIVE_COUNTS:', neg)
+    PY
+```
+
+TRAIN DAILY WORKFLOW:
+
+TRIGGER CONFIGURATION:
+```yaml
+on:
+  schedule:
+    - cron: '15 2 * * *'  # Daily at 2:15 AM UTC
+  workflow_dispatch:        # Manual trigger capability
+```
+
+CONCURRENCY CONTROL:
+```yaml
+concurrency:
+  group: train-daily
+  cancel-in-progress: false  # Don't cancel training jobs
+```
+
+FEATURE VALIDATION:
+```yaml
+- name: Ensure features exist (fallback rebuild 365 days if missing)
+  env:
+    OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
+  run: |
+    if [ ! -f Data/feature_store/karachi_daily_features.parquet ]; then 
+      echo 'Features parquet missing. Rebuilding last 365 days...';
+      python Data_Collection/feature_store_pipeline.py --days 365 --impute_short_gaps --min_hours_per_day 16;
+    else
+      echo 'Found features parquet.';
+    fi
+```
+
+MODEL TRAINING PIPELINE:
+```yaml
+- name: Train LightGBM
+  run: python Models/train_lightgbM.py --holdout_days 90 --tune --tune_trials 25
+
+- name: Train HGBR
+  run: python Models/train_hgbr.py --holdout_days 90 --tune --tune_trials 20
+
+- name: Train Linear
+  run: python Models/train_linear.py --holdout_days 90
+
+- name: Train RandomForest
+  run: python Models/train_rf.py --holdout_days 90
+
+- name: Stack and calibrate
+  run: python Models/stacking_linear_lightgbm.py --holdout_days 90 --constrain_nonneg --sum_to_one --calibrate
+```
+
+PREDICTION AND ALERTING:
+```yaml
+- name: Predict latest
+  run: python Models/predict_latest.py
+
+- name: Alert on hazardous AQI (hd1 >= 200)
+  shell: bash
+  run: |
+    python - <<'PY'
+    import json, sys
+    with open('Models/registry/latest_forecast.json','r',encoding='utf-8') as f:
+        blob = json.load(f)
+    hd1 = (blob.get('blend') or {}).get('hd1')
+    if hd1 is None:
+        print('No hd1 value in latest forecast; skipping alert')
+        sys.exit(0)
+    try:
+        v = float(hd1)
+    except Exception:
+        v = -1
+    if v >= 200.0:
+        print(f'HAZARDOUS AQI ALERT: blended hd1={v:.1f} >= 200')
+        sys.exit(1)  # Fail job to raise visibility
+    else:
+        print(f'OK: blended hd1={v:.1f} < 200')
+    PY
+```
+
+ARTIFACT MANAGEMENT:
+```yaml
+- name: Upload summaries and models
+  uses: actions/upload-artifact@v4
+  with:
+    name: train-artifacts-${{ github.run_id }}
+    path: |
+      EDA/lightgbm_output/summary.json
+      EDA/hgbr_output/summary.json
+      EDA/linear_output/summary.json
+      EDA/blend_output/summary.json
+      Models/registry/*_preds.csv
+      Models/registry/blend_weights_*.json
+      Models/registry/latest_forecast.json
+    retention-days: 14
+```
+
+============================================
+6. DEPLOYMENT STRATEGIES
+============================================
+
+DEPLOYMENT OPTIONS:
+
+1. **Local Development**:
+```bash
+# Run directly with Python
+cd WebApp/Backend
+uvicorn app.main:app --reload --port 8000
+
+# Run with Docker
+docker build -t aqi-predictor .
+docker run -p 8000:8000 aqi-predictor
+```
+
+2. **Production Deployment**:
+```bash
+# Build production image
+docker build -t aqi-predictor:prod .
+
+# Run with production environment variables
+docker run -d \
+  --name aqi-predictor-prod \
+  -p 8000:8000 \
+  -e OPENWEATHER_API_KEY=$OPENWEATHER_API_KEY \
+  -e FEAST_REPO_PATH=/app/feature_repo \
+  -v /path/to/feature_repo:/app/feature_repo \
+  -v /path/to/models:/app/Models/registry \
+  aqi-predictor:prod
+```
+
+3. **Docker Compose**:
+```yaml
+# docker-compose.yml
+version: '3.8'
+services:
+  aqi-predictor:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENWEATHER_API_KEY=${OPENWEATHER_API_KEY}
+      - FEAST_REPO_PATH=/app/feature_repo
+    volumes:
+      - ./feature_repo:/app/feature_repo
+      - ./Models/registry:/app/Models/registry
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+```
+
+4. **Kubernetes Deployment**:
+```yaml
+# k8s-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aqi-predictor
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: aqi-predictor
+  template:
+    metadata:
+      labels:
+        app: aqi-predictor
+    spec:
+      containers:
+      - name: aqi-predictor
+        image: aqi-predictor:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: OPENWEATHER_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: aqi-secrets
+              key: openweather-api-key
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aqi-predictor-service
+spec:
+  selector:
+    app: aqi-predictor
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8000
+  type: LoadBalancer
+```
+
+============================================
+7. MONITORING AND HEALTH CHECKS
+============================================
+
+HEALTH CHECK IMPLEMENTATION:
+
+ENDPOINT HEALTH:
+```python
+@app.get("/health")
+def health() -> Dict[str, Any]:
+    latest_ts: Optional[str] = None
+    try:
+        row = feast_client.get_latest_offline_row(FEATURES_PARQUET)
+        if row is not None and "event_timestamp" in row.index:
+            latest_ts = str(row["event_timestamp"])
+    except Exception:
+        latest_ts = None
+
+    artifacts = model_loader.current_artifacts_summary()
+    return {
+        "status": "ok",
+        "latest_feature_timestamp": latest_ts,
+        "artifacts": artifacts,
+    }
+```
+
+HEALTH CHECK COMPONENTS:
+1. **Feature Store Health**: Latest feature timestamp availability
+2. **Model Registry Health**: Model artifacts status and availability
+3. **API Responsiveness**: Endpoint response time and availability
+
+MONITORING METRICS:
+```python
+# Example monitoring implementation
+from prometheus_client import Counter, Histogram, generate_latest
+import time
+
+# Metrics
+PREDICTION_COUNTER = Counter('aqi_predictions_total', 'Total AQI predictions made')
+PREDICTION_DURATION = Histogram('aqi_prediction_duration_seconds', 'Time spent on predictions')
+
+@app.get("/metrics")
+def metrics():
+    return generate_latest()
+
+@app.get("/predict/latest")
+def predict_latest() -> Dict[str, Any]:
+    start_time = time.time()
+    try:
+        # ... prediction logic ...
+        PREDICTION_COUNTER.inc()
+        return pred
+    finally:
+        PREDICTION_DURATION.observe(time.time() - start_time)
+```
+
+============================================
+8. SECURITY CONSIDERATIONS
+============================================
+
+SECURITY IMPLEMENTATIONS:
+
+1. **Environment Variables**:
+```bash
+# Never hardcode sensitive information
+OPENWEATHER_API_KEY=your_api_key_here
+FEAST_REPO_PATH=/app/feature_repo
+MODEL_REGISTRY_PATH=/app/Models/registry
+```
+
+2. **CORS Configuration**:
+```python
+# Configure CORS appropriately for production
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://yourdomain.com"],  # Restrict origins
+    allow_credentials=True,
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
+```
+
+3. **Rate Limiting**:
+```python
+# Example rate limiting implementation
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+@app.get("/predict/latest")
+@limiter.limit("10/minute")  # 10 requests per minute per IP
+def predict_latest(request: Request):
+    # ... prediction logic ...
+```
+
+4. **Input Validation**:
+```python
+from pydantic import BaseModel, validator
+
+class PredictionRequest(BaseModel):
+    city_id: int
+    forecast_days: int = 3
+    
+    @validator('forecast_days')
+    def validate_forecast_days(cls, v):
+        if v < 1 or v > 7:
+            raise ValueError('forecast_days must be between 1 and 7')
+        return v
+```
+
+============================================
+9. PERFORMANCE OPTIMIZATION
+============================================
+
+OPTIMIZATION STRATEGIES:
+
+1. **Model Caching**:
+```python
+# Cache models in memory for faster inference
+import joblib
+from functools import lru_cache
+
+@lru_cache(maxsize=1)
+def load_models():
+    """Cache model loading to avoid repeated disk I/O"""
+    models = {}
+    for horizon in ['hd1', 'hd2', 'hd3']:
+        model_path = f"Models/registry/hgb_{horizon}_latest.joblib"
+        models[horizon] = joblib.load(model_path)
+    return models
+```
+
+2. **Async Processing**:
+```python
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+
+@app.get("/predict/batch")
+async def predict_batch(city_ids: List[int]):
+    """Process multiple predictions concurrently"""
+    executor = ThreadPoolExecutor(max_workers=4)
+    
+    async def predict_single(city_id):
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(executor, predict_for_city, city_id)
+    
+    tasks = [predict_single(city_id) for city_id in city_ids]
+    results = await asyncio.gather(*tasks)
+    return {"predictions": results}
+```
+
+3. **Response Caching**:
+```python
+from fastapi_cache import FastAPICache
+from fastapi_cache.backends.redis import RedisBackend
+from fastapi_cache.decorator import cache
+
+@app.get("/predict/latest")
+@cache(expire=300)  # Cache for 5 minutes
+async def predict_latest():
+    # ... prediction logic ...
+```
+
+============================================
+10. TROUBLESHOOTING AND DEBUGGING
+============================================
+
+COMMON ISSUES AND SOLUTIONS:
+
+1. **Model Loading Failures**:
+```bash
+# Check model registry
+ls -la Models/registry/
+
+# Verify model files exist
+python -c "import joblib; print(joblib.load('Models/registry/hgb_hd1_latest.joblib'))"
+
+# Check file permissions
+chmod 644 Models/registry/*.joblib
+```
+
+2. **Feature Store Issues**:
+```bash
+# Check Feast configuration
+cd feature_repo
+feast config
+
+# Verify online store
+feast get-online-features \
+  --feature-service karachi_air_quality_daily \
+  --entity '{"karachi_id": 1}'
+```
+
+3. **Docker Issues**:
+```bash
+# Check container logs
+docker logs aqi-predictor
+
+# Inspect container
+docker exec -it aqi-predictor bash
+
+# Check resource usage
+docker stats aqi-predictor
+```
+
+4. **GitHub Actions Failures**:
+```bash
+# Check workflow runs
+gh run list --workflow=features-hourly.yml
+
+# View specific run logs
+gh run view --log <run_id>
+
+# Re-run failed workflow
+gh run rerun <run_id>
+```
+
+============================================
+11. FUTURE ENHANCEMENTS
+============================================
+
+PLANNED IMPROVEMENTS:
+
+1. **Short Term (1-3 months)**:
+   - Implement comprehensive logging with structured logging
+   - Add metrics collection with Prometheus
+   - Implement automated testing pipeline
+   - Add API versioning support
+
+2. **Medium Term (3-6 months)**:
+   - Implement horizontal scaling with load balancers
+   - Add database persistence for prediction history
+   - Implement user authentication and authorization
+   - Add real-time WebSocket support for live updates
+
+3. **Long Term (6+ months)**:
+   - Implement microservices architecture
+   - Add support for multiple cities and regions
+   - Implement advanced caching strategies
+   - Add machine learning model versioning and A/B testing
+
+============================================
+13. CRITICAL WEBAPP COMPONENTS
+============================================
+
+FEATURE ALIGNMENT AND COERCION:
+```python
+# From model_loader.py
+def _align_to_feature_names(df, feature_names):
+    """Return a 1-row DataFrame with exactly feature_names columns in order"""
+    row = {}
+    for name in feature_names:
+        val = df[name].iloc[0] if name in df.columns else np.nan
+        row[name] = pd.to_numeric(val, errors="coerce")
+    X = pd.DataFrame([row], columns=feature_names)
+    X = X.replace([np.inf, -np.inf], np.nan).fillna(0.0)
+    return X
+
+def _coerce_numeric_impute_latest(df, feature_names):
+    """Coerce features to numeric and handle missing values"""
+    row = {}
+    for name in feature_names:
+        val = df[name].iloc[0] if name in df.columns else np.nan
+        row[name] = pd.to_numeric(val, errors="coerce")
+    X = pd.DataFrame([row], columns=feature_names)
+    X = X.replace([np.inf, -np.inf], np.nan).fillna(0.0)
+    return X
+```
+
+MODEL LOADING FALLBACK MECHANISMS:
+```python
+# From model_loader.py
+def initialize_registry(registry_dir: str) -> None:
+    """Initialize model registry with fallback handling"""
+    global _REGISTRY_DIR, _BLEND_WEIGHTS
+    _REGISTRY_DIR = registry_dir
+
+    # Load LightGBM boosters (optional)
+    if _lgb_runtime is not None:
+        for hz in ["hd1", "hd2", "hd3"]:
+            path = _latest(os.path.join(_REGISTRY_DIR, f"lgb_{hz}_*.txt"))
+            if path:
+                try:
+                    _BOOSTERS[hz] = _lgb_runtime.Booster(model_file=path)
+                except Exception:
+                    _BOOSTERS[hz] = None
+
+    # Load linear pipelines with feature lists
+    if joblib is not None:
+        for hz in ["hd1", "hd2", "hd3"]:
+            path = _latest(os.path.join(_REGISTRY_DIR, f"linear_{hz}_*.joblib"))
+            if path:
+                try:
+                    payload = joblib.load(path)
+                    _LINEAR[hz] = payload.get("model")
+                    _LINEAR_FEATS[hz] = payload.get("features", [])
+                except Exception as e:
+                    _LINEAR[hz] = None
+                    _LINEAR_FEATS[hz] = []
+```
+
+DEBUG LOGGING IMPLEMENTATION:
+```python
+# From model_loader.py
+def predict_all_from_series(latest: pd.Series) -> Dict[str, Dict[str, float]]:
+    df = _to_frame(latest)
+    out: Dict[str, Dict[str, float]] = {
+        "latest_feature_timestamp": str(latest.get("event_timestamp", "")),
+        "lightgbm": {},
+        "linear": {},
+        "hgbr": {},
+        "blend": {},
+    }
+
+    # DEBUG: Print what models are loaded
+    print(f"DEBUG: _BOOSTERS: {_BOOSTERS}")
+    print(f"DEBUG: _LINEAR: {_LINEAR}")
+    print(f"DEBUG: _HGBR: {_HGBR}")
+    print(f"DEBUG: _LINEAR_FEATS: {_LINEAR_FEATS}")
+    print(f"DEBUG: _HGBR_FEATS: {_HGBR_FEATS}")
+
+    # Per-model predictions with debug logging
+    for hz in ["hd1", "hd2", "hd3"]:
+        print(f"DEBUG: Processing horizon {hz}")
+        # ... prediction logic with debug prints ...
+    
+    print(f"DEBUG: Final predictions: {out}")
+    return out
+```
+
+============================================
+END OF DOCUMENTATION
+============================================

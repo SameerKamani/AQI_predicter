@@ -37,6 +37,7 @@ karachi_fv = FeatureView(
         Field(name="o3_mean", dtype=Float32),
         Field(name="so2_mean", dtype=Float32),
         Field(name="nh3_mean", dtype=Float32),
+        Field(name="o3_8h_max_ppb", dtype=Float32),
 
         # Calendar/time features
         Field(name="day_of_week", dtype=Float32),
@@ -156,6 +157,11 @@ karachi_fv = FeatureView(
         Field(name="target_aqi_d1", dtype=Float32),
         Field(name="target_aqi_d2", dtype=Float32),
         Field(name="target_aqi_d3", dtype=Float32),
+
+        # Data quality and completeness features
+        Field(name="num_hours", dtype=Float32),
+        Field(name="is_complete_day", dtype=Float32),
+        Field(name="imputed", dtype=Float32),
     ],
     source=karachi_source,
 )

@@ -1,0 +1,16 @@
+{
+  "horizon": "hd2",
+  "created_utc": "20250814T203642Z",
+  "model_path": "Models\\registry\\rf_hd2_20250814T203642Z.joblib",
+  "metrics": {
+    "rmse": 31.371569470900457,
+    "mae": 25.318457008811084,
+    "r2": -0.4993800334246916,
+    "mape_pct": 48.78359096731292,
+    "acc_category": 0.5777777777777777,
+    "acc_within_15": 0.35555555555555557
+  },
+  "predictions_path": "Models\\registry\\rf_hd2_20250814T203642Z_preds.csv",
+  "feature_importance_registry": "Models\\registry\\rf_hd2_20250814T203642Z_feature_importance.csv",
+  "library": "sklearn.RandomForestRegressor"
+}

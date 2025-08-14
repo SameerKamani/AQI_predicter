@@ -61,9 +61,16 @@ def initialize_registry(registry_dir: str) -> None:
                     payload = joblib.load(path)
                     _LINEAR[hz] = payload.get("model")
                     _LINEAR_FEATS[hz] = payload.get("features", [])
-                except Exception:
+                    print(f"DEBUG: Loaded Linear {hz} from {path}")
+                    print(f"DEBUG: Linear {hz} features: {_LINEAR_FEATS[hz]}")
+                except Exception as e:
+                    print(f"DEBUG: Failed to load Linear {hz}: {e}")
                     _LINEAR[hz] = None
                     _LINEAR_FEATS[hz] = []
+            else:
+                print(f"DEBUG: No Linear model found for {hz}")
+                _LINEAR[hz] = None
+                _LINEAR_FEATS[hz] = []
 
     # Load HGBR (sklearn) models with feature lists
     if joblib is not None:
@@ -74,9 +81,16 @@ def initialize_registry(registry_dir: str) -> None:
                     payload = joblib.load(path)
                     _HGBR[hz] = payload.get("model")
                     _HGBR_FEATS[hz] = payload.get("features", [])
-                except Exception:
+                    print(f"DEBUG: Loaded HGBR {hz} from {path}")
+                    print(f"DEBUG: HGBR {hz} features: {_HGBR_FEATS[hz]}")
+                except Exception as e:
+                    print(f"DEBUG: Failed to load HGBR {hz}: {e}")
                     _HGBR[hz] = None
                     _HGBR_FEATS[hz] = []
+            else:
+                print(f"DEBUG: No HGBR model found for {hz}")
+                _HGBR[hz] = None
+                _HGBR_FEATS[hz] = []
 
     # Load blend weights (latest)
     bw = _latest(os.path.join(_REGISTRY_DIR, "blend_weights_*.json"))
@@ -158,8 +172,17 @@ def predict_all_from_series(latest: pd.Series) -> Dict[str, Dict[str, float]]:
         "blend": {},
     }
 
+    # DEBUG: Print what models are loaded
+    print(f"DEBUG: _BOOSTERS: {_BOOSTERS}")
+    print(f"DEBUG: _LINEAR: {_LINEAR}")
+    print(f"DEBUG: _HGBR: {_HGBR}")
+    print(f"DEBUG: _LINEAR_FEATS: {_LINEAR_FEATS}")
+    print(f"DEBUG: _HGBR_FEATS: {_HGBR_FEATS}")
+
     # Per-model predictions
     for hz in ["hd1", "hd2", "hd3"]:
+        print(f"DEBUG: Processing horizon {hz}")
+        
         # LightGBM
         if _BOOSTERS.get(hz) is not None and _lgb_runtime is not None:
             try:
@@ -172,33 +195,43 @@ def predict_all_from_series(latest: pd.Series) -> Dict[str, Dict[str, float]]:
                 X = _align_to_feature_names(df, list(feat_names))
                 pred = float(booster.predict(X)[0])  # type: ignore[attr-defined]
                 out["lightgbm"][hz] = pred
-            except Exception:
+                print(f"DEBUG: LightGBM {hz} prediction: {pred}")
+            except Exception as e:
+                print(f"DEBUG: LightGBM {hz} failed: {e}")
                 pass
 
         # Linear
         if _LINEAR.get(hz) is not None and _LINEAR_FEATS.get(hz):
             try:
                 feats = _LINEAR_FEATS[hz]
+                print(f"DEBUG: Linear {hz} features: {feats}")
                 X = _coerce_numeric_impute_latest(df, feats)
                 if X.empty:
                     raise ValueError("linear features missing; skipping")
                 pred = float(_LINEAR[hz].predict(X)[0])  # type: ignore[attr-defined]
                 out["linear"][hz] = pred
-            except Exception:
+                print(f"DEBUG: Linear {hz} prediction: {pred}")
+            except Exception as e:
+                print(f"DEBUG: Linear {hz} failed: {e}")
                 pass
 
         # HGBR
         if _HGBR.get(hz) is not None:
             try:
                 feats = _HGBR_FEATS.get(hz) or list(df.columns)
+                print(f"DEBUG: HGBR {hz} features: {feats}")
                 X = _coerce_numeric_impute_latest(df, feats)
                 if X.empty:
                     raise ValueError("hgbr features missing; skipping")
                 pred = float(_HGBR[hz].predict(X)[0])  # type: ignore[attr-defined]
                 out["hgbr"][hz] = pred
-            except Exception:
+                print(f"DEBUG: HGBR {hz} prediction: {pred}")
+            except Exception as e:
+                print(f"DEBUG: HGBR {hz} failed: {e}")
                 pass
 
+    print(f"DEBUG: Final predictions: {out}")
+    
     # Blend
     for hz in ["hd1", "hd2", "hd3"]:
         wz = _BLEND_WEIGHTS.get(hz, {})
