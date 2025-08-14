@@ -290,56 +290,179 @@ def main():
                     how="inner",
                 ).drop(columns=["event_timestamp"])  # same order as merged
 
+                # Ensure all features are numeric for SHAP analysis
+                try:
+                    # Convert all features to numeric, coercing errors to NaN
+                    for col in X_aligned.columns:
+                        if col in feats:  # Only process feature columns
+                            X_aligned[col] = pd.to_numeric(X_aligned[col], errors='coerce')
+                    
+                    # Fill any resulting NaN values with 0 for SHAP compatibility
+                    X_aligned = X_aligned.fillna(0)
+                    
+                    # Verify all features are now numeric
+                    non_numeric_cols = X_aligned[feats].select_dtypes(exclude=['number']).columns
+                    if len(non_numeric_cols) > 0:
+                        print(f"Warning: Non-numeric columns after conversion: {list(non_numeric_cols)}")
+                        # Remove non-numeric columns from features list
+                        feats = [f for f in feats if f not in non_numeric_cols]
+                        X_aligned = X_aligned[feats]
+                    
+                    print(f"SHAP analysis using {len(feats)} numeric features for {horizon}")
+                    
+                except Exception as e:
+                    print(f"Data type conversion failed for {horizon}: {e}")
+                    continue
+
+                # Store SHAP values for each base model
+                shap_values = {}
+                model_names = []
+                
                 # LightGBM SHAP
-                shap_lgb = None
                 lgb_model_path = latest_file(os.path.join(args.registry, f"lgb_{horizon}_*.txt"))
                 if lgb is not None and lgb_model_path:
                     try:
                         booster = lgb.Booster(model_file=lgb_model_path)
                         expl = shap.TreeExplainer(booster)
                         shap_vals = expl.shap_values(X_aligned, check_additivity=False)
-                        shap_lgb = shap_vals if not isinstance(shap_vals, list) else shap_vals[0]
-                    except Exception:
-                        shap_lgb = None
+                        shap_vals = shap_vals if not isinstance(shap_vals, list) else shap_vals[0]
+                        shap_values["lightgbm"] = shap_vals
+                        model_names.append("lightgbm")
+                        print(f"Generated LightGBM SHAP for {horizon}")
+                    except Exception as e:
+                        print(f"LightGBM SHAP failed for {horizon}: {e}")
+
+                # HGBR SHAP
+                hgbr_model_path = latest_file(os.path.join(args.registry, f"hgbr_{horizon}_*.pkl"))
+                if hgbr_model_path:
+                    try:
+                        hgbr_model = joblib.load(hgbr_model_path)
+                        # Use TreeExplainer for HGBR
+                        expl = shap.TreeExplainer(hgbr_model)
+                        shap_vals = expl.shap_values(X_aligned, check_additivity=False)
+                        shap_values["hgbr"] = shap_vals
+                        model_names.append("hgbr")
+                        print(f"Generated HGBR SHAP for {horizon}")
+                    except Exception as e:
+                        print(f"HGBR SHAP failed for {horizon}: {e}")
+
+                # Random Forest SHAP
+                rf_model_path = latest_file(os.path.join(args.registry, f"rf_{horizon}_*.pkl"))
+                if rf_model_path:
+                    try:
+                        rf_model = joblib.load(rf_model_path)
+                        expl = shap.TreeExplainer(rf_model)
+                        shap_vals = expl.shap_values(X_aligned, check_additivity=False)
+                        shap_values["random_forest"] = shap_vals
+                        model_names.append("random_forest")
+                        print(f"Generated Random Forest SHAP for {horizon}")
+                    except Exception as e:
+                        print(f"Random Forest SHAP failed for {horizon}: {e}")
 
                 # Linear SHAP using saved pipeline
-                shap_lin = None
-                try:
-                    payload = joblib.load(lin_model_path)
-                    model = payload["model"]
-                    scaler = getattr(model, "named_steps", {}).get("scaler")
-                    reg = getattr(model, "named_steps", {}).get("reg")
-                    if scaler is not None and reg is not None:
-                        X_scaled = scaler.transform(X_aligned)
-                        lexpl = shap.LinearExplainer(reg, X_scaled)
-                        shap_lin = lexpl.shap_values(X_scaled)
-                except Exception:
-                    shap_lin = None
+                lin_model_path = latest_file(os.path.join(args.registry, f"linear_{horizon}_*.pkl"))
+                if lin_model_path:
+                    try:
+                        payload = joblib.load(lin_model_path)
+                        model = payload["model"]
+                        scaler = getattr(model, "named_steps", {}).get("scaler")
+                        reg = getattr(model, "named_steps", {}).get("reg")
+                        if scaler is not None and reg is not None:
+                            X_scaled = scaler.transform(X_aligned)
+                            lexpl = shap.LinearExplainer(reg, X_scaled)
+                            shap_vals = lexpl.shap_values(X_scaled)
+                            shap_values["linear"] = shap_vals
+                            model_names.append("linear")
+                            print(f"Generated Linear SHAP for {horizon}")
+                    except Exception as e:
+                        print(f"Linear SHAP failed for {horizon}: {e}")
 
-                # Combine per weights (pre-calibration)
-                shap_blend = None
-                if shap_lgb is not None or shap_lin is not None:
-                    lgb_part = 0.0 if shap_lgb is None else float(w[0]) * shap_lgb
-                    lin_part = 0.0 if shap_lin is None else float(w[1]) * shap_lin
-                    # Handle cases where one part is None
-                    if shap_lgb is None:
-                        shap_blend = lin_part
-                    elif shap_lin is None:
-                        shap_blend = lgb_part
-                    else:
-                        shap_blend = lgb_part + lin_part
+                # Generate individual model SHAP summaries
+                for model_name, shap_vals in shap_values.items():
+                    if shap_vals is not None:
+                        mean_abs = np.mean(np.abs(shap_vals), axis=0)
+                        shap_df = (
+                            pd.DataFrame({"feature": feats, "mean_abs_shap": mean_abs})
+                            .sort_values("mean_abs_shap", ascending=False)
+                            .reset_index(drop=True)
+                        )
+                        out_shap_dir = os.path.join("EDA", "shap_output")
+                        os.makedirs(out_shap_dir, exist_ok=True)
+                        shap_path = os.path.join(out_shap_dir, f"shap_global_stack_{model_name}_{horizon}.csv")
+                        shap_df.to_csv(shap_path, index=False)
+                        print(f"Saved {model_name} SHAP -> {shap_path}")
 
-                if shap_blend is not None:
-                    mean_abs = np.mean(np.abs(shap_blend), axis=0)
-                    shap_df = (
-                        pd.DataFrame({"feature": feats, "mean_abs_shap": mean_abs})
-                        .sort_values("mean_abs_shap", ascending=False)
-                        .reset_index(drop=True)
-                    )
-                    out_shap_dir = os.path.join("EDA", "shap_output")
-                    os.makedirs(out_shap_dir, exist_ok=True)
-                    shap_path = os.path.join(out_shap_dir, f"shap_global_stack_{horizon}.csv")
-                    shap_df.to_csv(shap_path, index=False)
+                # Generate ensemble SHAP analysis
+                if len(shap_values) > 1:
+                    try:
+                        # Weighted combination of SHAP values based on blend weights
+                        ensemble_shap = np.zeros_like(X_aligned, dtype=float)
+                        total_weight = 0.0
+                        
+                        for i, model_name in enumerate(model_names):
+                            if model_name in shap_values and shap_values[model_name] is not None:
+                                # Find the weight for this model in the blend
+                                weight_key = f"y_pred_{model_name.replace('_', '')}"
+                                if weight_key in base_cols:
+                                    weight_idx = base_cols.index(weight_key)
+                                    weight = float(w[weight_idx])
+                                    ensemble_shap += weight * shap_values[model_name]
+                                    total_weight += abs(weight)
+                        
+                        if total_weight > 0:
+                            # Normalize by total weight
+                            ensemble_shap = ensemble_shap / total_weight
+                            
+                            # Calculate ensemble feature importance
+                            mean_abs_ensemble = np.mean(np.abs(ensemble_shap), axis=0)
+                            ensemble_shap_df = (
+                                pd.DataFrame({"feature": feats, "mean_abs_shap": mean_abs_ensemble})
+                                .sort_values("mean_abs_shap", ascending=False)
+                                .reset_index(drop=True)
+                            )
+                            
+                            # Save ensemble SHAP
+                            ensemble_shap_path = os.path.join(out_shap_dir, f"shap_global_stack_ensemble_{horizon}.csv")
+                            ensemble_shap_df.to_csv(ensemble_shap_path, index=False)
+                            print(f"Saved ensemble SHAP -> {ensemble_shap_path}")
+                            
+                            # Generate model contribution analysis
+                            model_contributions = {}
+                            for model_name in model_names:
+                                weight_key = f"y_pred_{model_name.replace('_', '')}"
+                                if weight_key in base_cols:
+                                    weight_idx = base_cols.index(weight_key)
+                                    weight = float(w[weight_idx])
+                                    model_contributions[model_name] = weight
+                            
+                            # Save model contribution analysis
+                            contrib_path = os.path.join(out_shap_dir, f"shap_model_contributions_{horizon}.csv")
+                            contrib_df = pd.DataFrame([
+                                {"model": model, "contribution_weight": weight}
+                                for model, weight in model_contributions.items()
+                            ]).sort_values("contribution_weight", key=abs, ascending=False)
+                            contrib_df.to_csv(contrib_path, index=False)
+                            print(f"Saved model contributions -> {contrib_path}")
+                            
+                            # Create comprehensive SHAP summary
+                            shap_summary = {
+                                "horizon": horizon,
+                                "ensemble_feature_importance": ensemble_shap_df.to_dict("records"),
+                                "model_contributions": model_contributions,
+                                "base_models_analyzed": model_names,
+                                "total_features": len(feats),
+                                "holdout_samples": len(X_aligned)
+                            }
+                            
+                            # Save comprehensive SHAP summary
+                            summary_path = os.path.join(out_shap_dir, f"shap_stack_summary_{horizon}.json")
+                            with open(summary_path, "w", encoding="utf-8") as f:
+                                json.dump(shap_summary, f, indent=2, default=str)
+                            print(f"Saved comprehensive SHAP summary -> {summary_path}")
+                            
+                    except Exception as e:
+                        print(f"Ensemble SHAP failed for {horizon}: {e}")
+                        
         except Exception as e:
             # Do not break stacking if SHAP fails
             print(f"SHAP (stack) failed for {horizon}: {e}")
