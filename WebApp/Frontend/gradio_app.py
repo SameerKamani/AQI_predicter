@@ -318,22 +318,40 @@ with gr.Blocks(
             text-align: center !important;
             color: #2E86AB !important;
             margin-bottom: 30px !important;
+            font-size: 3.5em !important;
+            font-weight: bold !important;
+            display: block !important;
+            width: 100% !important;
         }
         .gr-markdown h2 {
+            text-align: center !important;
             color: #A23B72 !important;
             border-bottom: 2px solid #F18F01 !important;
             padding-bottom: 10px !important;
+            font-size: 2.2em !important;
+            font-weight: bold !important;
+            display: block !important;
+            width: 100% !important;
+        }
+        .gr-markdown {
+            text-align: center !important;
         }
     """
 ) as demo:
     
     # Header
     gr.Markdown("# 🌬️ Karachi Air Quality Index Forecast")
-    gr.Markdown("### Real-time air quality predictions for the next 3 days")
     
-    # Model Selection
-    with gr.Row():
-        gr.Markdown("## 🤖 Select Prediction Model")
+    # AQI Prediction Boxes
+    gr.Markdown("## 📊 3-Day AQI Forecast")
+    prediction_boxes = gr.HTML(label="AQI Predictions")
+    
+    # AQI Chart
+    gr.Markdown("## 📈 Historical Trends & Forecast")
+    aqi_chart = gr.Plot(label="AQI Trends")
+    
+    # Model Selection (moved to bottom)
+    gr.Markdown("## 🤖 Select Prediction Model")
     
     with gr.Row():
         model_dropdown = gr.Dropdown(
@@ -348,15 +366,7 @@ with gr.Blocks(
         refresh_btn = gr.Button("🔄 Refresh Predictions", variant="primary", size="lg")
     
     with gr.Row():
-        update_status = gr.Markdown("💡 Real-time updates run automatically every 30 minutes")
-    
-    # AQI Prediction Boxes
-    gr.Markdown("## 📊 3-Day AQI Forecast")
-    prediction_boxes = gr.HTML(label="AQI Predictions")
-    
-    # AQI Chart
-    gr.Markdown("## 📈 Historical Trends & Forecast")
-    aqi_chart = gr.Plot(label="AQI Trends")
+        update_status = gr.Markdown("")
     
     # Footer
     gr.Markdown("---")
