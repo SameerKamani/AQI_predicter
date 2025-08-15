@@ -2,8 +2,8 @@ name: Features - Hourly
 
 on:
   schedule:
-    - cron: '0 * * * *'
-  workflow_dispatch:
+    - cron: '0 * * * *'  # Every hour at minute 0
+  workflow_dispatch:      # Manual trigger capability
 
 concurrency:
   group: features-hourly
@@ -51,6 +51,67 @@ jobs:
           END=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           feast materialize "$START" "$END"
 
+      - name: Generate real-time predictions
+        env:
+          OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
+        run: |
+          # Generate predictions for current date + next 3 days
+          echo "Generating real-time predictions for $(date -u +%Y-%m-%d) + next 3 days..."
+          python Models/predict_realtime.py
+          
+          # Verify predictions are current
+          python - << 'PY'
+          import json
+          from datetime import datetime, timedelta
+          import pandas as pd
+          
+          # Check latest forecast
+          try:
+              with open('Models/registry/latest_forecast.json', 'r') as f:
+                  forecast = json.load(f)
+              
+              # Check if predictions are for current date
+              today = datetime.utcnow().date()
+              print(f"Today's date: {today}")
+              
+              # Verify feature timestamp is recent
+              if 'latest_feature_timestamp' in forecast:
+                  ts = forecast['latest_feature_timestamp']
+                  print(f"Latest feature timestamp: {ts}")
+                  
+                  # Check if features are from today or yesterday
+                  if 'T' in ts:
+                      feature_date = pd.to_datetime(ts).date()
+                      days_diff = (today - feature_date).days
+                      if days_diff <= 1:
+                          print("✅ Features are current (within 1 day)")
+                      else:
+                          print(f"⚠️ Features are {days_diff} days old")
+                  else:
+                      print("⚠️ Could not parse feature timestamp")
+              else:
+                  print("⚠️ No feature timestamp in forecast")
+              
+              # Check forecast dates
+              if 'forecast_dates' in forecast:
+                  print(f"Forecast dates: {forecast['forecast_dates']}")
+                  expected_dates = [
+                      (today + timedelta(days=i)).isoformat() 
+                      for i in range(1, 4)
+                  ]
+                  print(f"Expected dates: {expected_dates}")
+                  
+                  if forecast['forecast_dates'] == expected_dates:
+                      print("✅ Forecast dates are correct (current + next 3 days)")
+                  else:
+                      print("⚠️ Forecast dates are incorrect")
+              else:
+                  print("⚠️ No forecast dates in prediction")
+                  
+          except Exception as e:
+              print(f"❌ Error checking forecast: {e}")
+          PY
+
       - name: Quick sanity check
         run: |
           python - << 'PY'
@@ -68,6 +129,7 @@ jobs:
             Data/feature_store/karachi_daily_features.parquet
             Data/feature_store/karachi_daily_features.csv
             Data/raw/karachi_air_pollution.csv
+            Models/registry/latest_forecast.json
           retention-days: 10
 
 

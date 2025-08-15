@@ -1,11 +1,28 @@
 import os
+import asyncio
+import subprocess
 from typing import Any, Dict, Optional
 from pathlib import Path
 import sys
+from datetime import datetime, timedelta, timezone
+import threading
+import time
 
 import pandas as pd
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+
+# Load environment variables from config file
+try:
+    from dotenv import load_dotenv
+    # Load from .env in the project root
+    load_dotenv('.env')
+    print("✅ Environment variables loaded from .env")
+except ImportError:
+    print("⚠️ python-dotenv not installed, using system environment variables")
+    print("💡 Install with: pip install python-dotenv")
+except Exception as e:
+    print(f"⚠️ Error loading config.env: {e}, using system environment variables")
 
 try:
     import gradio as gr  # type: ignore
@@ -25,8 +42,13 @@ except Exception:
     _ROOT_FOR_PATH = str(_HERE.parents[3])
     if _ROOT_FOR_PATH not in sys.path:
         sys.path.insert(0, _ROOT_FOR_PATH)
-    from WebApp.Backend.app import feast_client  # type: ignore
-    from WebApp.Backend.app import model_loader  # type: ignore
+    try:
+        from WebApp.Backend.app import feast_client  # type: ignore
+        from WebApp.Backend.app import model_loader  # type: ignore
+    except ImportError:
+        # Try relative imports if absolute imports fail
+        from . import feast_client  # type: ignore
+        from . import model_loader  # type: ignore
 
 
 def _get_env_path(key: str, default: str) -> str:
@@ -39,6 +61,179 @@ _ROOT = str(Path(__file__).resolve().parents[3])  # .../repo
 FEAST_REPO_PATH = _get_env_path("FEAST_REPO_PATH", os.path.join(_ROOT, "feature_repo"))
 FEATURES_PARQUET = _get_env_path("FEATURES_PARQUET", os.path.join(_ROOT, "Data", "feature_store", "karachi_daily_features.parquet"))
 REGISTRY_DIR = _get_env_path("REGISTRY_DIR", os.path.join(_ROOT, "Models", "registry"))
+
+# Real-time update configuration
+UPDATE_INTERVAL_MINUTES = int(os.getenv("UPDATE_INTERVAL_MINUTES", "30"))  # Update every 30 minutes by default
+REALTIME_UPDATE_ENABLED = os.getenv("REALTIME_UPDATE_ENABLED", "true").lower() == "true"
+
+
+def check_if_update_needed():
+    """Check if real-time update is actually needed"""
+    try:
+        import pandas as pd
+        from datetime import datetime, timezone
+        
+        # Check feature store for latest data
+        features_path = Path(FEATURES_PARQUET)
+        if not features_path.exists():
+            print("📁 Feature store not found - update needed")
+            return True
+        
+        # Read latest feature data
+        df = pd.read_parquet(features_path)
+        if df.empty:
+            print("📊 Feature store is empty - update needed")
+            return True
+        
+        # Get latest timestamp from feature store
+        latest_feature_date = pd.to_datetime(df['event_timestamp'].max()).date()
+        current_date = datetime.now(timezone.utc).date()
+        
+        print(f"📅 Latest feature date: {latest_feature_date}")
+        print(f"📅 Current date: {current_date}")
+        
+        # Check if we have today's data
+        if latest_feature_date >= current_date:
+            print("✅ Features are up-to-date - no update needed")
+            return False
+        else:
+            print(f"🔄 Features are outdated (last: {latest_feature_date}, current: {current_date}) - update needed")
+            return True
+            
+    except Exception as e:
+        print(f"❌ Error checking update status: {e}")
+        return True  # Default to updating if check fails
+
+
+def run_feature_update():
+    """Run feature update pipeline only if needed"""
+    try:
+        print("🔍 Checking if update is needed...")
+        
+        if not check_if_update_needed():
+            print("✅ No update needed - features are current")
+            return True
+        
+        # Find the gap and fill it properly
+        import pandas as pd
+        features_path = Path(FEATURES_PARQUET)
+        
+        if features_path.exists():
+            df = pd.read_parquet(features_path)
+            if not df.empty:
+                latest_date = pd.to_datetime(df['event_timestamp'].max()).date()
+                current_date = datetime.now(timezone.utc).date()
+                
+                # Fill the gap from latest_date + 1 to current_date
+                # We need to fetch the missing days (Aug 13-15) plus some historical context for lags
+                # But since we're using --append, we don't need to re-fetch existing data
+                start_date = (latest_date + timedelta(days=1)).strftime("%Y-%m-%d")  # Start from day after latest
+                end_date = current_date.strftime("%Y-%m-%d")   # Up to today
+                
+                print(f"📅 Latest data: {latest_date}")
+                print(f"📅 Current date: {current_date}")
+                print(f"🔄 Filling gap from {start_date} to {end_date}...")
+            else:
+                # No existing data, fetch last 21 days to ensure enough data for features and lags
+                start_date = (datetime.now(timezone.utc) - timedelta(days=21)).strftime("%Y-%m-%d")
+                end_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+                print(f"🔄 No existing data, fetching from {start_date} to {end_date} (including lag days)...")
+        else:
+            # No existing file, fetch last 21 days to ensure enough data for features and lags
+            start_date = (datetime.now(timezone.utc) - timedelta(days=21)).strftime("%Y-%m-%d")
+            end_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            print(f"🔄 No feature store found, fetching from {start_date} to {end_date} (including lag days)...")
+        
+        # Run feature pipeline with proper date range
+        result = subprocess.run([
+            "python", "Data_Collection/feature_store_pipeline.py",
+            "--start", start_date,
+            "--end", end_date,
+            "--impute_short_gaps",
+            "--min_hours_per_day", "16",
+            "--append"
+        ], capture_output=True, text=True, cwd=_ROOT)
+        
+        if result.returncode == 0:
+            print("✅ Features updated successfully")
+        else:
+            print(f"❌ Feature update failed: {result.stderr}")
+            return False
+        
+        # Update Feast
+        print("🔄 Updating Feast...")
+        feast_result = subprocess.run([
+            "feast", "apply"
+        ], capture_output=True, text=True, cwd=FEAST_REPO_PATH)
+        
+        if feast_result.returncode == 0:
+            print("✅ Feast applied successfully")
+        else:
+            print(f"❌ Feast apply failed: {feast_result.stderr}")
+            return False
+        
+        # Materialize Feast with proper date range
+        # Convert start_date and end_date to proper Feast format
+        start_datetime = f"{start_date}T00:00:00Z"
+        end_datetime = f"{end_date}T23:59:59Z"
+        print(f"🔄 Materializing from {start_datetime} to {end_datetime}...")
+        materialize_result = subprocess.run([
+            "feast", "materialize", start_datetime, end_datetime
+        ], capture_output=True, text=True, cwd=FEAST_REPO_PATH)
+        
+        if materialize_result.returncode == 0:
+            print("✅ Feast materialized successfully")
+        else:
+            print(f"❌ Feast materialize failed: {materialize_result.stderr}")
+            return False
+        
+        return True
+    except Exception as e:
+        print(f"❌ Error updating features: {e}")
+        return False
+
+
+def run_prediction_update():
+    """Run real-time prediction update"""
+    try:
+        print("🔮 Generating real-time predictions...")
+        
+        result = subprocess.run([
+            "python", "Models/predict_realtime.py"
+        ], capture_output=True, text=True, cwd=_ROOT)
+        
+        if result.returncode == 0:
+            print("✅ Real-time predictions generated successfully")
+            return True
+        else:
+            print(f"❌ Prediction generation failed: {result.stderr}")
+            return False
+    except Exception as e:
+        print(f"❌ Error generating predictions: {e}")
+        return False
+
+
+def realtime_update_worker():
+    """Background worker for smart real-time updates"""
+    while True:
+        try:
+            print(f"🕐 Real-time update cycle starting at {datetime.now()}")
+            
+            # Check if update is needed first
+            if check_if_update_needed():
+                print("🔄 Update needed - running full pipeline...")
+                # Update features
+                if run_feature_update():
+                    # Generate predictions
+                    run_prediction_update()
+            else:
+                print("✅ No update needed - skipping this cycle")
+            
+            # Wait for next cycle
+            time.sleep(UPDATE_INTERVAL_MINUTES * 60)
+        except Exception as e:
+            print(f"❌ Error in real-time update worker: {e}")
+            time.sleep(60)  # Wait 1 minute before retrying
 
 
 app = FastAPI(title="AQI Prediction Service", version="1.0.0")
@@ -55,6 +250,15 @@ app.add_middleware(
 def _startup() -> None:
     # Initialize model registry on startup for low-latency requests
     model_loader.initialize_registry(REGISTRY_DIR)
+    
+    # Start real-time update worker if enabled
+    if REALTIME_UPDATE_ENABLED:
+        print(f"🚀 Starting real-time update worker (interval: {UPDATE_INTERVAL_MINUTES} minutes)")
+        update_thread = threading.Thread(target=realtime_update_worker, daemon=True)
+        update_thread.start()
+        print("✅ Real-time update worker started successfully")
+    else:
+        print("⚠️ Real-time updates are disabled")
 
 
 @app.get("/health")
@@ -117,99 +321,78 @@ def series_last30() -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Failed to load series: {e}")
 
 
-def _build_gradio_ui():  # pragma: no cover - UI construction
-    if gr is None:
-        return None
+@app.get("/predict")
+def predict() -> Dict[str, Any]:
+    """Alias for /predict/latest for convenience"""
+    try:
+        return predict_latest()  # reuse the API function directly
+    except Exception as exc:  # noqa: BLE001
+        return {"error": str(exc)}
 
-    def _ui_predict() -> Dict[str, Any]:
-        try:
-            return predict_latest()  # reuse the API function directly
-        except Exception as exc:  # noqa: BLE001
-            return {"error": str(exc)}
 
-    with gr.Blocks(title="Karachi AQI Forecast") as demo:
-        gr.Markdown("""
-        # Karachi AQI Forecast
-        Latest blended predictions for the next 3 days (hd1..hd3)
-        """)
-        with gr.Row():
-            hd1 = gr.Number(label="hd1 (AQI)")
-            hd2 = gr.Number(label="hd2 (AQI)")
-            hd3 = gr.Number(label="hd3 (AQI)")
-        status = gr.JSON(label="Details (per-model and blend)")
-        alert = gr.HTML("", label="Alert")
-        chart = gr.Plot(label="Last 30 days AQI with 3-day forecast")
-        refresh = gr.Button("Refresh predictions")
+@app.post("/update/realtime")
+def trigger_realtime_update(background_tasks: BackgroundTasks) -> Dict[str, Any]:
+    """Trigger real-time update manually - only if needed"""
+    try:
+        print("🚀 Manual real-time update triggered")
+        
+        # Check if update is actually needed
+        if not check_if_update_needed():
+            return {
+                "status": "skipped",
+                "message": "No update needed - features are current",
+                "timestamp": datetime.now().isoformat(),
+                "next_update": (datetime.now() + timedelta(minutes=UPDATE_INTERVAL_MINUTES)).isoformat()
+            }
+        
+        print("🔄 Update needed - starting pipeline...")
+        
+        # Add update tasks to background
+        background_tasks.add_task(run_feature_update)
+        background_tasks.add_task(run_prediction_update)
+        
+        return {
+            "status": "success",
+            "message": "Real-time update started",
+            "timestamp": datetime.now().isoformat(),
+            "next_update": (datetime.now() + timedelta(minutes=UPDATE_INTERVAL_MINUTES)).isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to trigger update: {e}")
 
-        def _make_chart(res: Dict[str, Any]):
-            if go is None:
-                return None
-            # Load last 30 days from offline parquet
-            try:
-                df = pd.read_parquet(FEATURES_PARQUET).sort_values("event_timestamp")
-                df = df.tail(30)
-            except Exception:
-                return None
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(x=df["event_timestamp"], y=df["aqi_daily"], mode="lines+markers", name="AQI (past)", line=dict(color="#3b82f6")))
-            # Forecast points: next 1..3 days placed at last date + d
-            try:
-                last_ts = pd.to_datetime(str(df["event_timestamp"].iloc[-1]))
-                blend = res.get("blend", {}) if isinstance(res, dict) else {}
-                preds = [
-                    (last_ts + pd.Timedelta(days=1), float(blend.get("hd1", float("nan"))), "hd1"),
-                    (last_ts + pd.Timedelta(days=2), float(blend.get("hd2", float("nan"))), "hd2"),
-                    (last_ts + pd.Timedelta(days=3), float(blend.get("hd3", float("nan"))), "hd3"),
-                ]
-                colors = {"hd1": "#22c55e", "hd2": "#eab308", "hd3": "#ef4444"}
-                for ts, val, name in preds:
-                    fig.add_trace(go.Scatter(x=[ts], y=[val], mode="markers", marker=dict(size=10, color=colors[name]), name=f"forecast {name}"))
-            except Exception:
-                pass
-            fig.update_layout(margin=dict(l=10, r=10, t=30, b=10), height=400)
-            return fig
 
-        def _on_click() -> tuple[float, float, float, Dict[str, Any], str, Any]:
-            res = _ui_predict()
-            blend = res.get("blend", {}) if isinstance(res, dict) else {}
-            fig = _make_chart(res)
-            hd1_val = blend.get("hd1")
-            banner = ""
-            try:
-                if hd1_val is not None and float(hd1_val) >= 200.0:
-                    banner = (
-                        "<div style='padding:10px;background:#fee2e2;border:1px solid #ef4444;color:#991b1b;border-radius:6px'>"
-                        "<strong>Hazardous AQI alert:</strong> Next-day forecast (hd1) is >= 200. Limit outdoor exposure." 
-                        "</div>"
-                    )
-            except Exception:
-                banner = ""
-            return (
-                float(blend.get("hd1", float("nan"))),
-                float(blend.get("hd2", float("nan"))),
-                float(blend.get("hd3", float("nan"))),
-                res,
-                banner,
-                fig,
-            )
-
-        refresh.click(fn=_on_click, outputs=[hd1, hd2, hd3, status, alert, chart])
-        # Auto-run once on load
-        demo.load(fn=_on_click, outputs=[hd1, hd2, hd3, status, alert, chart])
-    return demo
+@app.get("/update/status")
+def get_update_status() -> Dict[str, Any]:
+    """Get real-time update status"""
+    return {
+        "realtime_updates_enabled": REALTIME_UPDATE_ENABLED,
+        "update_interval_minutes": UPDATE_INTERVAL_MINUTES,
+        "last_update_attempt": datetime.now().isoformat(),
+        "next_scheduled_update": (datetime.now() + timedelta(minutes=UPDATE_INTERVAL_MINUTES)).isoformat()
+    }
 
 
 # Mount Gradio under /ui if available
 if gr is not None:  # pragma: no cover - interactive only
-    demo_app = _build_gradio_ui()
-    if demo_app is not None:
+    try:
+        # Simple import from the correct path
+        from WebApp.Frontend.gradio_app import demo
+        from gradio.routes import mount_gradio_app
+        mount_gradio_app(app, demo, path="/ui")
+        print("✅ Gradio app mounted successfully at /ui")
+    except Exception as e:
+        print(f"Failed to mount Gradio app: {e}")
+        # Simple fallback interface
+        with gr.Blocks(title="Karachi AQI Forecast") as fallback_demo:
+            gr.Markdown("# 🌬️ Karachi AQI Forecast")
+            gr.Markdown("### Frontend Gradio app failed to load. Please check the logs.")
+            gr.Markdown("API endpoints are still available at `/predict` and `/health`")
+        
         try:
-            from gradio.routes import mount_gradio_app  # type: ignore
-
-            mount_gradio_app(app, demo_app, path="/ui")
+            from gradio.routes import mount_gradio_app
+            mount_gradio_app(app, fallback_demo, path="/ui")
         except Exception:
-            # Older gradio versions
-            app = gr.mount_gradio_app(app, demo_app, path="/ui")  # type: ignore
+            app = gr.mount_gradio_app(app, fallback_demo, path="/ui")
 
 
 # For local dev: uvicorn WebApp.Backend.app.main:app --reload --port 8000

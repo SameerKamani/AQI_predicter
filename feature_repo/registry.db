@@ -9,8 +9,8 @@ __dummy_idJkarachi_aqi
 
 karachi_idKarachi city identifier"
 karachi_idJkarachi_aqi
-©ÅÙÄÀß›—©ÅÙÄÀß›—1"$e494564d-755e-4975-96d4-df9d6a07a421*ý½ùÄÈÀ£02ô
-¿
+©ÅÙÄÀß›—©ÅÙÄÀß›—1"$89258458-cded-4dfb-8f10-2a3cdb37f322*ÿùÄˆœÉÕ2•
+½
 karachi_air_quality_dailykarachi_aqi
 karachi_id"
 	aqi_daily"
@@ -129,10 +129,10 @@ temp_range"
 	num_hours"
 is_complete_day"
 imputed2€Æ
-:Þevent_timestamp*createdZ64../Data/feature_store/karachi_daily_features.parquetŠ1feast.infra.offline_stores.file_source.FileSource¢4../Data/feature_store/karachi_daily_features.parquet’å½ùÄÐß¡ñ"å½ùÄÐß¡ñ@b
+:Üevent_timestamp*createdZ64../Data/feature_store/karachi_daily_features.parquetŠ1feast.infra.offline_stores.file_source.FileSource¢4../Data/feature_store/karachi_daily_features.parquet’ÿùÄø£Q"ÿùÄø£Q@b
 
-karachi_id¯
-©ÅÙÄÀß›—ý½ùÄÈÀ£0
+karachi_idÒ
+©ÅÙÄÀß›—ÿùÄˆœÉÕ
 ¯üþÀ·ÊÙÄ
 é€ÿÀðÎÙÄ
 ŠšÿÀŠèÙÄ
@@ -147,7 +147,16 @@ karachi_id¯
 €‡°Ä€ÎôÄ
 ÌãžÁÌ±ùÄ
 €‹Ò»€ñùÄ
-€‹Ò»€ñùÄRƒ
+€‹Ò»€ñùÄ
+•ÈõÄ•ëúÄ
+ÈÏõÄÈòúÄ
+ÁÔõÄÁ÷úÄ
+Þ×õÄÞúúÄ
+—ÙõÄ—üúÄ
+øÚõÄøýúÄ
+˜ÞõÄ˜ûÄ
+èáõÄè„ûÄ
+€«ïÄ‚ÿùÄRƒ
 €
 ,feast.infra.online_stores.sqlite.SqliteTable"P
 'E:\10pearls\feature_repo\data\online.db%karachi_aqi_karachi_air_quality_dailybëevent_timestamp*createdZ64../Data/feature_store/karachi_daily_features.parquetŠ1feast.infra.offline_stores.file_source.FileSource¢4../Data/feature_store/karachi_daily_features.parquetªkarachi_aqi’©ÅÙÄàÏ›>"©ÅÙÄÀß›—Š+

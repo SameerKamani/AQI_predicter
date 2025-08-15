@@ -32,6 +32,43 @@ WHY THIS ARCHITECTURE:
 3. **Unified Deployment**: Single container serving both API and UI
 4. **Scalability**: Async support for high-concurrency prediction requests
 
+CURRENT WEBAPP STRUCTURE ALIGNMENT:
+
+**Docker Configuration Alignment**:
+- **Working Directory**: `/app` in container maps to project root
+- **Import Paths**: `WebApp.Backend.app.main:app` correctly references the structure
+- **File Access**: All WebApp components accessible from container root
+- **Feature Store**: `feature_repo/` accessible for Feast operations
+- **Model Registry**: `Models/registry/` accessible for model loading
+
+**File Structure Verification**:
+```bash
+# Container file structure
+/app/
+├── WebApp/
+│   ├── Backend/
+│   │   └── app/
+│   │       ├── main.py          # FastAPI app entry point
+│   │       ├── model_loader.py  # Model loading logic
+│   │       └── feast_client.py  # Feature store client
+│   └── Frontend/
+│       └── gradio_app.py        # Gradio interface
+├── feature_repo/                 # Feast configuration
+├── Models/registry/              # Trained models
+├── Data/feature_store/           # Feature data
+└── requirements.txt              # Python dependencies
+```
+
+**Import Resolution**:
+```python
+# In main.py - correctly imports from WebApp structure
+from WebApp.Backend.app import feast_client
+from WebApp.Backend.app import model_loader
+
+# In gradio_app.py - correctly imports from WebApp structure
+from WebApp.Frontend.gradio_app import demo
+```
+
 ============================================
 2. BACKEND IMPLEMENTATION (FastAPI)
 ============================================
@@ -234,11 +271,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 SYSTEM DEPENDENCIES:
 ```dockerfile
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libgomp1 \
+    && apt-get install -y --no-install-recommends libgomp1 curl \
     && rm -rf /var/lib/apt/lists/*
 ```
-**Why libgomp1**: 
-- Required for LightGBM (OpenMP runtime)
+**Why libgomp1 and curl**: 
+- `libgomp1`: Required for LightGBM (OpenMP runtime)
+- `curl`: Required for health check functionality
 - `--no-install-recommends`: Minimizes package installation
 - `rm -rf /var/lib/apt/lists/*`: Reduces image size
 
@@ -247,10 +285,14 @@ DEPENDENCY INSTALLATION:
 # Install python deps first for better layer caching
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Install Feast for feature store integration
+RUN pip install --no-cache-dir feast[sqlite]
 ```
 **Layer Caching Strategy**:
 - Copy requirements.txt first for better Docker layer caching
 - `--no-cache-dir`: Reduces image size
+- **Feast Installation**: Explicitly installs Feast with SQLite support for feature store
 - Dependencies change less frequently than application code
 
 APPLICATION DEPLOYMENT:
@@ -258,12 +300,27 @@ APPLICATION DEPLOYMENT:
 # Copy the application code
 COPY . .
 
+# Create non-root user for security
+RUN useradd --create-home --shell /bin/bash app && chown -R app:app /app
+USER app
+WORKDIR /app
+
 # Expose API port
 EXPOSE 8000
 
-# Default command
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Default command - updated to match your WebApp structure
 CMD ["uvicorn", "WebApp.Backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
+
+**Security and Health Check Features**:
+- **Non-root user**: Creates `app` user for security
+- **Proper permissions**: Ensures app user owns all application files
+- **Health checks**: Monitors application health via `/health` endpoint
+- **Working directory**: Maintains `/app` as working directory for proper file access
 
 DOCKER BUILD AND RUN COMMANDS:
 ```bash
@@ -281,6 +338,14 @@ docker run -p 8000:8000 \
   -v $(pwd)/feature_repo:/app/feature_repo \
   -v $(pwd)/Models/registry:/app/Models/registry \
   aqi-predictor
+
+# Run with health check monitoring
+docker run -p 8000:8000 \
+  --health-cmd="curl -f http://localhost:8000/health || exit 1" \
+  --health-interval=30s \
+  --health-timeout=10s \
+  --health-retries=3 \
+  aqi-predictor
 ```
 
 DOCKER OPTIMIZATION RECOMMENDATIONS:
@@ -292,6 +357,7 @@ FROM python:3.11-slim as builder
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --user -r requirements.txt
+RUN pip install --user feast[sqlite]
 
 # Runtime stage
 FROM python:3.11-slim
@@ -299,18 +365,41 @@ WORKDIR /app
 COPY --from=builder /root/.local /root/.local
 COPY . .
 ENV PATH=/root/.local/bin:$PATH
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgomp1 curl \
+    && rm -rf /var/lib/apt/lists/*
+RUN useradd --create-home --shell /bin/bash app && chown -R app:app /app
+USER app
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
 CMD ["uvicorn", "WebApp.Backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
-2. **Security Enhancements**:
+2. **Security Enhancements** (Already implemented):
 ```dockerfile
 # Create non-root user
 RUN useradd --create-home --shell /bin/bash app
 USER app
-WORKDIR /home/app
+WORKDIR /app
 
 # Copy application as non-root user
 COPY --chown=app:app . .
+```
+
+3. **Production Optimizations**:
+```dockerfile
+# Add production-specific optimizations
+ENV PYTHONOPTIMIZE=1 \
+    PYTHONHASHSEED=random
+
+# Add security scanning
+RUN pip install --no-cache-dir safety
+RUN safety check
+
+# Add production health checks
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
 ```
 
 ============================================
@@ -929,6 +1018,145 @@ def predict_all_from_series(latest: pd.Series) -> Dict[str, Dict[str, float]]:
     
     print(f"DEBUG: Final predictions: {out}")
     return out
+```
+
+============================================
+12. DOCKER TESTING AND VALIDATION
+============================================
+
+DOCKER CONFIGURATION TESTING:
+
+**1. Build Validation**:
+```bash
+# Test Docker build
+docker build -t aqi-predictor:test .
+
+# Verify build success
+docker images | grep aqi-predictor
+```
+
+**2. Container Structure Validation**:
+```bash
+# Run container in interactive mode to inspect structure
+docker run -it --rm aqi-predictor:test bash
+
+# Inside container, verify file structure
+ls -la /app/
+ls -la /app/WebApp/
+ls -la /app/WebApp/Backend/app/
+ls -la /app/WebApp/Frontend/
+
+# Verify Python imports work
+python -c "from WebApp.Backend.app.main import app; print('FastAPI app loaded successfully')"
+python -c "from WebApp.Frontend.gradio_app import demo; print('Gradio app loaded successfully')"
+```
+
+**3. Health Check Validation**:
+```bash
+# Run container with health checks
+docker run -d --name aqi-test \
+  -p 8000:8000 \
+  aqi-predictor:test
+
+# Wait for health check
+sleep 30
+
+# Check health status
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+# Test health endpoint
+curl -f http://localhost:8000/health
+
+# Check container logs
+docker logs aqi-test
+
+# Cleanup
+docker stop aqi-test
+docker rm aqi-test
+```
+
+**4. Full Application Testing**:
+```bash
+# Run container with volume mounts
+docker run -d --name aqi-full-test \
+  -p 8000:8000 \
+  -v $(pwd)/feature_repo:/app/feature_repo \
+  -v $(pwd)/Models/registry:/app/Models/registry \
+  -v $(pwd)/Data/feature_store:/app/Data/feature_store \
+  aqi-predictor:test
+
+# Wait for startup
+sleep 30
+
+# Test API endpoints
+curl http://localhost:8000/health
+curl http://localhost:8000/predict/latest
+
+# Test Gradio interface
+curl http://localhost:8000/ui/
+
+# Check container logs for errors
+docker logs aqi-full-test
+
+# Cleanup
+docker stop aqi-full-test
+docker rm aqi-full-test
+```
+
+**5. Production Readiness Checklist**:
+```bash
+# Security validation
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+  aquasec/trivy image aqi-predictor:test
+
+# Resource usage testing
+docker run -d --name aqi-stress-test \
+  -p 8000:8000 \
+  --memory=512m \
+  --cpus=1.0 \
+  aqi-predictor:test
+
+# Load testing
+ab -n 1000 -c 10 http://localhost:8000/health
+
+# Cleanup
+docker stop aqi-stress-test
+docker rm aqi-stress-test
+```
+
+**6. Troubleshooting Common Docker Issues**:
+
+**Issue: Import Errors**:
+```bash
+# Check if WebApp structure is correct in container
+docker run -it --rm aqi-predictor:test bash
+ls -la /app/WebApp/Backend/app/
+python -c "import sys; print(sys.path)"
+```
+
+**Issue: File Permission Errors**:
+```bash
+# Verify user permissions
+docker run -it --rm aqi-predictor:test bash
+whoami
+ls -la /app/
+```
+
+**Issue: Health Check Failures**:
+```bash
+# Check if curl is available
+docker run -it --rm aqi-predictor:test bash
+which curl
+curl --version
+```
+
+**Issue: Port Binding Problems**:
+```bash
+# Check if port is already in use
+netstat -tulpn | grep :8000
+
+# Use different port
+docker run -p 8001:8000 aqi-predictor:test
 ```
 
 ============================================

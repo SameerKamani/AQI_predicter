@@ -17,13 +17,16 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Install Feast for feature store integration
+RUN pip install --no-cache-dir feast[sqlite]
+
 # Copy the application code
 COPY . .
 
 # Create non-root user for security
 RUN useradd --create-home --shell /bin/bash app && chown -R app:app /app
 USER app
-WORKDIR /home/app
+WORKDIR /app
 
 # Expose API port
 EXPOSE 8000
@@ -32,7 +35,7 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Default command
+# Default command - updated to match your WebApp structure
 CMD ["uvicorn", "WebApp.Backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 
