@@ -41,7 +41,7 @@ EXECUTION:
 ================================================================
 
 FEATURE CATEGORIES:
-Our dataset comprises 109 engineered features across multiple categories:
+Our dataset comprises 113 engineered features across multiple categories:
 
 CORE AIR QUALITY FEATURES:
 - Daily means: PM2.5, PM10, CO, NO, NO2, O3, SO2, NH3
@@ -79,6 +79,11 @@ TARGET VARIABLES:
 - target_aqi_d1: AQI prediction for next day
 - target_aqi_d2: AQI prediction for 2 days ahead
 - target_aqi_d3: AQI prediction for 3 days ahead
+
+DATA QUALITY FLAGS:
+- num_hours: Number of hourly observations per day
+- is_complete_day: Flag indicating if day has sufficient data (≥16 hours)
+- imputed: Flag indicating if data was interpolated for missing calendar days
 
 FEATURE ENGINEERING TECHNIQUES:
 - Statistical transformations: rolling means, standard deviations
@@ -153,7 +158,7 @@ IMPLEMENTATION DETAILS:
 OFFLINE STORAGE:
 - Format: Parquet files (efficient, compressed columnar storage)
 - Location: Data/feature_store/karachi_daily_features.parquet
-- Schema: 100+ features with proper data types and constraints
+- Schema: 113 features with proper data types and constraints
 
 ONLINE STORAGE:
 - Database: SQLite (online.db) for real-time feature serving
@@ -612,7 +617,51 @@ CMD ["python", "-m", "uvicorn", "WebApp.Backend.app.main:app", "--host", "0.0.0.
 ```
 
 ================================================================
-8. MONITORING AND MAINTENANCE
+8. REAL-TIME UPDATE SYSTEM
+================================================================
+
+REAL-TIME UPDATE ARCHITECTURE:
+
+The system now implements an automated real-time update system that continuously keeps data current:
+
+AUTOMATED UPDATE WORKFLOW:
+1. **Background Worker**: Runs every 30 minutes automatically when web app starts
+2. **Smart Detection**: Only updates when data is actually outdated
+3. **Gap Filling**: Automatically detects and fills missing date ranges
+4. **Feature Pipeline**: Runs feature_store_pipeline.py with optimal date ranges
+5. **Feast Materialization**: Updates online store with latest features
+6. **Prediction Generation**: Creates fresh predictions for upcoming days
+
+IMPLEMENTATION DETAILS:
+```python
+# From WebApp/Backend/app/main.py
+def check_if_update_needed():
+    """Check if real-time update is actually needed"""
+    # Compares latest feature date with current date
+    # Only updates if data is outdated
+    
+def run_feature_update():
+    """Run the feature update pipeline with smart date range calculation"""
+    # Dynamically calculates start_date and end_date
+    # Fills gaps from latest_date + 1 to current_date
+    # Ensures sufficient historical data for lag features
+```
+
+SMART DATE RANGE CALCULATION:
+- **When data exists**: Only fetches missing gap (latest_date + 1 to current_date)
+- **When no data exists**: Fetches 21 days to ensure enough data for lag features
+- **Prevents unnecessary updates**: Skips update cycles when data is current
+- **Handles edge cases**: Manages data gaps and ensures feature completeness
+
+REAL-TIME FEATURES:
+- **Automated Background Processing**: Updates run without blocking user interactions
+- **Manual Trigger Support**: Users can force updates via web interface
+- **Status Monitoring**: Real-time update status and next scheduled update
+- **Error Handling**: Comprehensive error handling with graceful degradation
+- **Logging**: Detailed logging for debugging and monitoring
+
+================================================================
+9. MONITORING AND MAINTENANCE
 ================================================================
 
 MONITORING:

@@ -87,11 +87,12 @@ CROSS-VALIDATION APPROACH:
 - Why Rolling Windows: Simulates real-world scenario where we train on past data to predict future
 
 FEATURE ENGINEERING:
-- 109 features including air quality, meteorological, temporal
+- 113 features including air quality, meteorological, temporal, and data quality indicators
 - Lag features: 1-7 day historical values for AQI and pollutants, 1-3 days for weather
 - Rolling statistics: 3, 7, 14, 30-day windows for AQI/PM, 3, 7-day for weather
 - Cyclical encoding: Sine/cosine transformations for seasonality
 - Change rate features: Day-over-day AQI changes
+- Data quality flags: num_hours, is_complete_day, imputed for data validation
 - Why These Features: Air quality is highly dependent on recent history and seasonal patterns
 
 HYPERPARAMETER OPTIMIZATION:
@@ -789,7 +790,54 @@ COMMON ISSUES AND SOLUTIONS:
    - Check: API key validity and usage limits
 
 ============================================
-21. GLOSSARY OF TERMS
+21. REAL-TIME PREDICTION SYSTEM
+============================================
+
+REAL-TIME PREDICTION ARCHITECTURE:
+
+The system now implements a comprehensive real-time prediction system that automatically updates data and models:
+
+```python
+# From Models/predict_realtime.py
+def main():
+    """Main function for real-time prediction generation"""
+    # Validates feature freshness
+    # Loads models and generates predictions
+    # Saves predictions with timestamp
+    
+def validate_feature_freshness(features_path: str) -> bool:
+    """Validate that features are current (have today's data)"""
+    # Checks if latest feature date matches current date
+    # Ensures predictions are based on fresh data
+```
+
+AUTOMATED UPDATE WORKFLOW:
+
+1. **Feature Validation**: Checks if features are current (have today's data)
+2. **Model Loading**: Loads latest trained models from registry
+3. **Prediction Generation**: Creates predictions for next 3 days
+4. **Timestamp Tracking**: Records when predictions were generated
+5. **Quality Assurance**: Validates prediction values and ranges
+
+REAL-TIME FEATURES:
+
+- **Dynamic Date Calculation**: Predictions always show actual upcoming dates
+- **Live Data Updates**: Continuous data collection from weather APIs
+- **Smart Caching**: Only fetches new data when needed
+- **Background Processing**: Updates don't block user interactions
+- **Manual Triggers**: Users can force updates via UI button
+- **Status Monitoring**: Real-time update status and next scheduled update
+
+INTEGRATION WITH WEBAPP:
+
+- **Automatic Updates**: Every 30 minutes, system checks for new data
+- **Smart Detection**: Only updates when data is actually outdated
+- **Gap Filling**: Automatically detects and fills missing date ranges
+- **Model Retraining**: Updates models with latest data
+- **UI Refresh**: Frontend automatically reflects latest predictions
+
+============================================
+22. GLOSSARY OF TERMS
 ============================================
 
 TECHNICAL TERMINOLOGY:

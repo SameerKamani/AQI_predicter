@@ -513,67 +513,149 @@ INTEGRATION APPROACH:
 - **Real-Time Updates**: Integrated with backend real-time update system
 - **Dynamic Data**: Live chart updates and real-time prediction refresh
 
+ENHANCED UI FEATURES:
+
+**Improved Styling and Layout:**
+- **Centered Headings**: All section headers are centered with larger, bold fonts
+- **Enhanced Typography**: Main heading (3.5em), section headings (2.2em)
+- **Better Color Scheme**: Improved AQI colors, especially darker yellow for moderate levels
+- **Responsive Design**: Grid-based layout that adapts to different screen sizes
+- **Interactive Elements**: Hover effects on prediction boxes with smooth transitions
+
+**Real-Time UI Updates:**
+- **Dynamic Date Calculation**: Prediction boxes always show actual upcoming dates
+- **Live Chart Updates**: Chart automatically fetches latest 30 days of data
+- **Smart Data Fallbacks**: API → Parquet → Dummy data priority system
+- **Status Monitoring**: Real-time update status display with timestamps
+- **Manual Controls**: Force update and refresh buttons for user control
+
 CURRENT FEATURES:
 ```python
-# Real-time AQI prediction boxes with color coding
+# Real-time AQI prediction boxes with color coding and dynamic dates
 def create_aqi_prediction_boxes(hd1, hd2, hd3):
     """Generate HTML for three color-coded AQI prediction boxes"""
     # Dynamic date calculation for forecast dates
-    today = datetime.now()
-    day1 = (today + timedelta(days=1)).strftime('%B %d')
-    day2 = (today + timedelta(days=2)).strftime('%B %d')
-    day3 = (today + timedelta(days=3)).strftime('%B %d')
+    current_date = datetime.now()
+    forecast_dates = [
+        (current_date + timedelta(days=i)).strftime("%b %d") 
+        for i in range(1, 4)
+    ]
     
-    # AQI category and color mapping
+    # AQI category and color mapping with improved colors
     def get_aqi_color(aqi_value):
-        if aqi_value <= 50: return "#00FF00"      # Good - Green
-        elif aqi_value <= 100: return "#FFFF00"   # Moderate - Yellow
-        elif aqi_value <= 150: return "#FFA500"   # Unhealthy for Sensitive - Orange
+        if aqi_value <= 50: return "#00E400"      # Good - Green
+        elif aqi_value <= 100: return "#D4AF37"   # Moderate - Darker Yellow
+        elif aqi_value <= 150: return "#FF7E00"   # Unhealthy for Sensitive - Orange
         elif aqi_value <= 200: return "#FF0000"   # Unhealthy - Red
-        elif aqi_value <= 300: return "#800080"   # Very Unhealthy - Purple
-        else: return "#800000"                    # Hazardous - Maroon
+        elif aqi_value <= 300: return "#8F3F97"   # Very Unhealthy - Purple
+        else: return "#7E0023"                    # Hazardous - Maroon
     
-    # Generate HTML boxes
+    # Generate HTML boxes with enhanced styling and hover effects
     html_content = f"""
     <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin: 20px 0;">
-        <div style="background-color: {get_aqi_color(hd1)}; padding: 20px; border-radius: 10px; text-align: center; color: white; font-weight: bold;">
-            <h3>Day 1: {day1}</h3>
-            <h2>AQI: {hd1:.1f}</h2>
+        <div style="
+            background: {get_aqi_color(hd1)};
+            color: white;
+            padding: 25px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+            border: 3px solid {get_aqi_color(hd1)};
+            transition: transform 0.3s ease;
+        " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+            <h3 style="margin: 0 0 10px 0; font-size: 18px; font-weight: 600;">{forecast_dates[0]}</h3>
+            <div style="font-size: 32px; font-weight: bold; margin: 10px 0;">{hd1:.1f}</div>
+            <div style="font-size: 14px; opacity: 0.9;">{get_aqi_category(hd1)}</div>
         </div>
-        <div style="background-color: {get_aqi_color(hd2)}; padding: 20px; border-radius: 10px; text-align: center; color: white; font-weight: bold;">
-            <h3>Day 2: {day2}</h3>
-            <h2>AQI: {hd2:.1f}</h2>
+        
+        <div style="
+            background: {get_aqi_color(hd2)};
+            color: white;
+            padding: 25px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+            border: 3px solid {get_aqi_color(hd2)};
+            transition: transform 0.3s ease;
+        " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+            <h3 style="margin: 0 0 10px 0; font-size: 18px; font-weight: 600;">{forecast_dates[1]}</h3>
+            <div style="font-size: 32px; font-weight: bold; margin: 10px 0;">{hd2:.1f}</div>
+            <div style="font-size: 14px; opacity: 0.9;">{get_aqi_category(hd2)}</div>
         </div>
-        <div style="background-color: {get_aqi_color(hd3)}; padding: 20px; border-radius: 10px; text-align: center; color: white; font-weight: bold;">
-            <h3>Day 3: {day3}</h3>
-            <h2>AQI: {hd3:.1f}</h2>
+        
+        <div style="
+            background: {get_aqi_color(hd3)};
+            color: white;
+            padding: 25px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+            border: 3px solid {get_aqi_color(hd3)};
+            transition: transform 0.3s ease;
+        " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+            <h3 style="margin: 0 0 10px 0; font-size: 18px; font-weight: bold;">{forecast_dates[2]}</h3>
+            <div style="font-size: 32px; font-weight: bold; margin: 10px 0;">{hd3:.1f}</div>
+            <div style="font-size: 14px; opacity: 0.9;">{get_aqi_category(hd3)}</div>
         </div>
     </div>
     """
     return html_content
 
-# Interactive 30-day historical chart with predictions
+# Interactive 30-day historical chart with real-time data fetching
 def create_aqi_chart(hd1, hd2, hd3):
-    """Create interactive chart with historical data and predictions"""
+    """Create interactive chart with real-time historical data and predictions"""
     try:
-        # Try to fetch from backend API first
+        # Priority 1: Fetch from backend API for latest data
         response = requests.get("http://localhost:8000/series/last30")
         if response.status_code == 200:
             data = response.json()
-            dates = data['dates']
-            aqi_values = data['aqi_values']
+            if data.get("points"):
+                # Use API data as primary source
+                api_dates = [pd.to_datetime(point["event_timestamp"]) for point in data["points"]]
+                api_aqi = [point["aqi_daily"] for point in data["points"] if point["aqi_daily"] is not None]
+                if api_dates and api_aqi:
+                    dates = pd.to_datetime(api_dates)
+                    historical_aqi = np.array(api_aqi)
+                    print(f"✅ Using API data: {len(dates)} points from {dates.min()} to {dates.max()}")
+                else:
+                    raise Exception("No valid API data")
+            else:
+                raise Exception("No points in API response")
         else:
-            # Fallback to local parquet file
-            df = pd.read_parquet('Data/feature_store/karachi_daily_features.parquet')
-            latest_date = pd.to_datetime(df['event_timestamp'].max())
-            start_date = latest_date - timedelta(days=29)
-            recent_data = df[pd.to_datetime(df['event_timestamp']) >= start_date].sort_values('event_timestamp')
-            dates = recent_data['event_timestamp'].dt.strftime('%Y-%m-%d').tolist()
-            aqi_values = recent_data['aqi_daily'].tolist()
-    except:
-        # Generate dummy data if all else fails
-        dates = [(datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d') for i in range(29, -1, -1)]
-        aqi_values = [50 + i * 2 for i in range(30)]
+            raise Exception(f"API request failed: {response.status_code}")
+    except Exception as api_error:
+        print(f"⚠️ API fetch failed: {api_error}, falling back to parquet")
+        
+        # Priority 2: Fallback to local parquet file
+        features_path = Path(__file__).parent.parent.parent / "Data" / "feature_store" / "karachi_daily_features.parquet"
+        
+        if features_path.exists():
+            df = pd.read_parquet(features_path)
+            df = df.sort_values("event_timestamp").tail(30)
+            
+            dates = pd.to_datetime(df["event_timestamp"])
+            historical_aqi = df["aqi_daily"].values
+            print(f"📁 Using parquet data: {len(dates)} points from {dates.min()} to {dates.max()}")
+        else:
+            # Priority 3: Generate dummy data if nothing works
+            dates = pd.date_range(end=datetime.now(), periods=30, freq='D')
+            historical_aqi = np.full(30, 70)
+            print("⚠️ No data sources available, using dummy data")
+    
+    # Ensure exactly 30 data points for consistent chart display
+    if len(dates) > 30:
+        dates = dates[-30:]
+        historical_aqi = historical_aqi[-30:]
+    elif len(dates) < 30:
+        # Pad with dummy data if we have less than 30 points
+        missing_days = 30 - len(dates)
+        if missing_days > 0:
+            last_date = dates[-1] if len(dates) > 0 else datetime.now()
+            dummy_dates = pd.date_range(start=last_date + timedelta(days=1), periods=missing_days, freq='D')
+            dummy_aqi = np.full(missing_days, historical_aqi[-1] if len(historical_aqi) > 0 else 70)
+            
+            dates = np.concatenate([dates, dummy_dates])
+            historical_aqi = np.concatenate([historical_aqi, dummy_aqi])
     
     # Add forecast points
     today = datetime.now()
@@ -763,7 +845,35 @@ USER app
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
-CMD ["uvicorn", "WebApp.Backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "WebApp.Backend.app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+```
+
+2. **Production Optimizations**:
+```dockerfile
+# Add production-specific optimizations
+ENV PYTHONOPTIMIZE=1 \
+    PYTHONHASHSEED=random
+
+# Add security scanning
+RUN pip install --no-cache-dir safety
+RUN safety check
+
+# Add production health checks
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+```
+
+3. **Environment Variable Management**:
+```dockerfile
+# Set environment variables for configuration
+ENV PYTHONPATH=/app \
+    FEAST_REPO_PATH=/app/feature_repo \
+    MODEL_REGISTRY_PATH=/app/Models/registry \
+    FEATURES_PARQUET=/app/Data/feature_store/karachi_daily_features.parquet
+
+# Allow runtime override
+ENV REALTIME_UPDATE_ENABLED=true \
+    UPDATE_INTERVAL_MINUTES=30
 ```
 
 2. **Security Enhancements** (Already implemented):
