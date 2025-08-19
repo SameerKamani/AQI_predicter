@@ -29,9 +29,9 @@ jobs:
           pip install numpy scipy scikit-learn
           pip install lightgbm xgboost joblib optuna matplotlib seaborn shap
           pip install requests tqdm
-          pip install "protobuf>=3.20,<4.0"
           pip install typeguard pyarrow
           pip install feast[sqlite]
+          pip install "protobuf>=3.20,<4.0" --force-reinstall
 
       - name: Ensure features exist (fallback rebuild if missing)
         env:
