@@ -30,7 +30,8 @@ jobs:
           pip install lightgbm xgboost joblib
           pip install requests tqdm
           pip install "protobuf>=3.20,<4.0"
-          pip install feast[sqlite] --no-deps
+          pip install typeguard pyarrow
+          pip install feast[sqlite]
 
       - name: Build features (today, append)
         env:
