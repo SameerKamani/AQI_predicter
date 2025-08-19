@@ -21,21 +21,21 @@ except Exception:
     optuna = None
 
 
-DEFAULT_PARQUET = os.path.join("Data", "feature_store", "karachi_daily_features.parquet")
+DEFAULT_PARQUET = os.path.join("..", "Data", "feature_store", "karachi_daily_features.parquet")
 DEFAULT_REGISTRY = os.path.join("Models", "registry")
 DEFAULT_OUT = os.path.join("EDA", "hgbr_output")
 
 
 def select_feature_columns(df: pd.DataFrame) -> List[str]:
     exclude = {
-        "date",
+        "date", # date is now an explicit feature
         "event_timestamp",
         "created",
         "city",
         "karachi_id",
-        "target_aqi_d1",
-        "target_aqi_d2",
-        "target_aqi_d3",
+        "AQI_t+1",
+        "AQI_t+2",
+        "AQI_t+3",
     }
     return [c for c in df.columns if c not in exclude]
 
@@ -251,13 +251,13 @@ def main() -> None:
         raise FileNotFoundError(f"Parquet not found: {args.parquet}")
     df = pd.read_parquet(args.parquet)
 
-    required = {"event_timestamp", "aqi_daily", "target_aqi_d1", "target_aqi_d2", "target_aqi_d3"}
+    required = {"event_timestamp", "AQI", "AQI_t+1", "AQI_t+2", "AQI_t+3"}
     missing = required - set(df.columns)
     if missing:
         raise ValueError(f"Missing required columns: {missing}")
 
     overall: Dict[str, Dict[str, float]] = {}
-    for target in ["target_aqi_d1", "target_aqi_d2", "target_aqi_d3"]:
+    for target in ["AQI_t+1", "AQI_t+2", "AQI_t+3"]:
         overall[target] = train_for_horizon(df, target, args.holdout_days, args.seed, args.registry, args.out, tune=args.tune, tune_trials=args.tune_trials)
 
     os.makedirs(args.out, exist_ok=True)

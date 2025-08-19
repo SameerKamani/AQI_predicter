@@ -23,7 +23,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('Models/registry/realtime_predictions.log'),
+        logging.FileHandler('Models/Models/registry/realtime_predictions.log'),
         logging.StreamHandler()
     ]
 )
@@ -40,10 +40,27 @@ def validate_feature_freshness(features_path: str) -> bool:
             logger.error(f"Features file not found: {features_path}")
             return False
         
-        # Read the latest features
-        df = pd.read_parquet(features_path)
-        if df.empty:
-            logger.error("Features file is empty")
+        # Read the latest features - try CSV first, then parquet as fallback
+        df = None
+        csv_path = str(features_path).replace('.parquet', '.csv')
+        
+        if os.path.exists(csv_path):
+            try:
+                df = pd.read_csv(csv_path)
+                logger.info(f"Using CSV features file: {csv_path}")
+            except Exception as e:
+                logger.warning(f"Could not read CSV file: {e}, trying parquet...")
+        
+        if df is None and os.path.exists(features_path):
+            try:
+                df = pd.read_parquet(features_path)
+                logger.info(f"Using parquet features file: {features_path}")
+            except Exception as e:
+                logger.error(f"Could not read parquet file: {e}")
+                return False
+        
+        if df is None or df.empty:
+            logger.error("No features data available")
             return False
         
         # Get latest timestamp
@@ -58,7 +75,7 @@ def validate_feature_freshness(features_path: str) -> bool:
         logger.info(f"Current date: {current_date}")
         
         if latest_date >= current_date:
-            logger.info("✅ Features are current - have today's data")
+            logger.info("SUCCESS: Features are current - have today's data")
             return True
         else:
             logger.warning(f"Features are outdated - last: {latest_date}, current: {current_date}")
@@ -77,14 +94,32 @@ def generate_realtime_predictions():
         current_date = get_current_utc_date()
         logger.info(f"Current UTC date: {current_date}")
         
-        # Validate feature freshness
-        features_path = project_root / "Data" / "feature_store" / "karachi_daily_features.parquet"
-        if not validate_feature_freshness(str(features_path)):
-            logger.error("Features are not current. Please update features first.")
-            return False
+        # Validate feature freshness - use CSV first, then parquet
+        csv_path = project_root / "Data" / "feature_store" / "karachi_daily_features.csv"
+        parquet_path = project_root / "Data" / "feature_store" / "karachi_daily_features.parquet"
+        
+        # Try CSV first (updated by data pipeline)
+        if csv_path.exists():
+            if validate_feature_freshness(str(csv_path)):
+                features_path = csv_path
+                logger.info("SUCCESS: Using CSV features file for validation")
+            else:
+                # Fallback to parquet if CSV validation fails
+                if parquet_path.exists() and validate_feature_freshness(str(parquet_path)):
+                    features_path = parquet_path
+                    logger.info("SUCCESS: Using parquet features file for validation")
+                else:
+                    logger.error("ERROR: No current features available in either CSV or parquet")
+                    return False
+        else:
+            # Only parquet available
+            if not validate_feature_freshness(str(parquet_path)):
+                logger.error("ERROR: No current features available")
+                return False
+            features_path = parquet_path
         
         # Initialize model registry
-        registry_dir = project_root / "Models" / "registry"
+        registry_dir = project_root / "Models" / "Models" / "registry"
         model_loader.initialize_registry(str(registry_dir))
         
         # Get latest features from Feast
@@ -92,11 +127,11 @@ def generate_realtime_predictions():
         latest_features = feast_client.get_latest_features(str(feast_repo_path), str(features_path))
         
         if latest_features is None:
-            logger.error("❌ No features available for prediction")
+            logger.error("ERROR: No features available for prediction")
             return False
         
         # Generate predictions
-        logger.info("🔮 Generating predictions...")
+        logger.info("Generating predictions...")
         predictions = model_loader.predict_all_from_series(latest_features)
         
         # Add metadata
@@ -112,12 +147,12 @@ def generate_realtime_predictions():
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(predictions, f, indent=2, ensure_ascii=False)
         
-        logger.info(f"✅ Predictions saved to: {output_path}")
+        logger.info(f"SUCCESS: Predictions saved to: {output_path}")
         
         # Log prediction summary
         if 'blend' in predictions:
             blend = predictions['blend']
-            logger.info("📊 Prediction Summary:")
+            logger.info("PREDICTION SUMMARY:")
             logger.info(f"  Day 1 ({predictions['forecast_dates'][0]}): {blend.get('hd1', 'N/A'):.2f}")
             logger.info(f"  Day 2 ({predictions['forecast_dates'][1]}): {blend.get('hd2', 'N/A'):.2f}")
             logger.info(f"  Day 3 ({predictions['forecast_dates'][2]}): {blend.get('hd3', 'N/A'):.2f}")
@@ -126,16 +161,16 @@ def generate_realtime_predictions():
         if 'blend' in predictions and 'hd1' in predictions['blend']:
             hd1 = predictions['blend']['hd1']
             if hd1 >= 200:
-                logger.warning(f"🚨 HAZARDOUS AQI ALERT: Day 1 AQI = {hd1:.2f} >= 200")
+                logger.warning(f"HAZARDOUS AQI ALERT: Day 1 AQI = {hd1:.2f} >= 200")
             elif hd1 >= 150:
-                logger.warning(f"⚠️ UNHEALTHY AQI: Day 1 AQI = {hd1:.2f} >= 150")
+                logger.warning(f"UNHEALTHY AQI: Day 1 AQI = {hd1:.2f} >= 150")
             else:
-                logger.info(f"✅ AQI levels are acceptable: Day 1 AQI = {hd1:.2f}")
+                logger.info(f"SUCCESS: AQI levels are acceptable: Day 1 AQI = {hd1:.2f}")
         
         return True
         
     except Exception as e:
-        logger.error(f"❌ Error generating real-time predictions: {e}")
+        logger.error(f"ERROR: Error generating real-time predictions: {e}")
         return False
 
 def main():
@@ -147,7 +182,7 @@ def main():
     success = generate_realtime_predictions()
     
     if success:
-        logger.info("🎉 Real-time predictions completed successfully!")
+        logger.info("SUCCESS: Real-time predictions completed successfully!")
         sys.exit(0)
     else:
         logger.error("Real-time predictions failed!")

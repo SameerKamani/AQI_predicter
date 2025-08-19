@@ -1,0 +1,16 @@
+{
+  "horizon": "AQI_t+2",
+  "created_utc": "20250819T001523Z",
+  "model_path": "Models\\registry\\rf_AQI_t+2_20250819T001523Z.joblib",
+  "metrics": {
+    "rmse": 9.355150000535026,
+    "mae": 7.2826745972232025,
+    "r2": 0.3190432813361601,
+    "mape_pct": 9.001216345387311,
+    "acc_category": 0.9111111111111111,
+    "acc_within_15": 0.9111111111111111
+  },
+  "predictions_path": "Models\\registry\\rf_AQI_t+2_20250819T001523Z_preds.csv",
+  "feature_importance_registry": "Models\\registry\\rf_AQI_t+2_20250819T001523Z_feature_importance.csv",
+  "library": "sklearn.RandomForestRegressor"
+}

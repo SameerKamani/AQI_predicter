@@ -1,0 +1,250 @@
+2025-08-19 06:37:29,380 - INFO - ============================================================
+2025-08-19 06:37:29,380 - INFO - REAL-TIME AQI PREDICTION SYSTEM
+2025-08-19 06:37:29,380 - INFO - ============================================================
+2025-08-19 06:37:29,380 - INFO - Starting real-time AQI predictions...
+2025-08-19 06:37:29,380 - INFO - Current UTC date: 2025-08-19
+2025-08-19 06:37:31,270 - INFO - Latest feature date: 2025-08-15
+2025-08-19 06:37:31,270 - INFO - Current date: 2025-08-19
+2025-08-19 06:37:31,270 - WARNING - Features are outdated - last: 2025-08-15, current: 2025-08-19
+2025-08-19 06:37:31,274 - ERROR - Features are not current. Please update features first.
+2025-08-19 06:37:31,274 - ERROR - Real-time predictions failed!
+2025-08-19 06:45:26,022 - INFO - ============================================================
+2025-08-19 06:45:26,027 - INFO - REAL-TIME AQI PREDICTION SYSTEM
+2025-08-19 06:45:26,027 - INFO - ============================================================
+2025-08-19 06:45:26,027 - INFO - Starting real-time AQI predictions...
+2025-08-19 06:45:26,027 - INFO - Current UTC date: 2025-08-19
+2025-08-19 06:45:26,098 - INFO - Latest feature date: 2025-08-15
+2025-08-19 06:45:26,098 - INFO - Current date: 2025-08-19
+2025-08-19 06:45:26,098 - WARNING - Features are outdated - last: 2025-08-15, current: 2025-08-19
+2025-08-19 06:45:26,099 - ERROR - Features are not current. Please update features first.
+2025-08-19 06:45:26,099 - ERROR - Real-time predictions failed!
+2025-08-19 06:48:51,365 - INFO - ============================================================
+2025-08-19 06:48:51,365 - INFO - REAL-TIME AQI PREDICTION SYSTEM
+2025-08-19 06:48:51,365 - INFO - ============================================================
+2025-08-19 06:48:51,365 - INFO - Starting real-time AQI predictions...
+2025-08-19 06:48:51,365 - INFO - Current UTC date: 2025-08-19
+2025-08-19 06:48:51,385 - INFO - Using CSV features file: E:\10pearls\Data\feature_store\karachi_daily_features.csv
+2025-08-19 06:48:51,392 - INFO - Latest feature date: 2025-08-15
+2025-08-19 06:48:51,392 - INFO - Current date: 2025-08-19
+2025-08-19 06:48:51,392 - WARNING - Features are outdated - last: 2025-08-15, current: 2025-08-19
+2025-08-19 06:48:51,406 - INFO - Using CSV features file: E:\10pearls\Data\feature_store\karachi_daily_features.csv
+2025-08-19 06:48:51,406 - INFO - Latest feature date: 2025-08-15
+2025-08-19 06:48:51,406 - INFO - Current date: 2025-08-19
+2025-08-19 06:48:51,406 - WARNING - Features are outdated - last: 2025-08-15, current: 2025-08-19
+2025-08-19 06:48:51,412 - ERROR - Real-time predictions failed!
+2025-08-19 06:53:12,603 - INFO - ============================================================
+2025-08-19 06:53:12,603 - INFO - REAL-TIME AQI PREDICTION SYSTEM
+2025-08-19 06:53:12,603 - INFO - ============================================================
+2025-08-19 06:53:12,603 - INFO - Starting real-time AQI predictions...
+2025-08-19 06:53:12,603 - INFO - Current UTC date: 2025-08-19
+2025-08-19 06:53:12,624 - INFO - Using CSV features file: E:\10pearls\Data\feature_store\karachi_daily_features.csv
+2025-08-19 06:53:12,626 - INFO - Latest feature date: 2025-08-15
+2025-08-19 06:53:12,626 - INFO - Current date: 2025-08-19
+2025-08-19 06:53:12,626 - WARNING - Features are outdated - last: 2025-08-15, current: 2025-08-19
+2025-08-19 06:53:12,639 - INFO - Using CSV features file: E:\10pearls\Data\feature_store\karachi_daily_features.csv
+2025-08-19 06:53:12,639 - INFO - Latest feature date: 2025-08-15
+2025-08-19 06:53:12,639 - INFO - Current date: 2025-08-19
+2025-08-19 06:53:12,639 - WARNING - Features are outdated - last: 2025-08-15, current: 2025-08-19
+2025-08-19 06:53:12,639 - ERROR - ERROR: No current features available in either CSV or parquet
+2025-08-19 06:53:12,639 - ERROR - Real-time predictions failed!
+2025-08-19 07:11:37,070 - INFO - ============================================================
+2025-08-19 07:11:37,070 - INFO - REAL-TIME AQI PREDICTION SYSTEM
+2025-08-19 07:11:37,070 - INFO - ============================================================
+2025-08-19 07:11:37,070 - INFO - Starting real-time AQI predictions...
+2025-08-19 07:11:37,070 - INFO - Current UTC date: 2025-08-19
+2025-08-19 07:11:37,101 - INFO - Using CSV features file: E:\10pearls\Data\feature_store\karachi_daily_features.csv
+2025-08-19 07:11:37,101 - INFO - Latest feature date: 2025-08-15
+2025-08-19 07:11:37,101 - INFO - Current date: 2025-08-19
+2025-08-19 07:11:37,101 - WARNING - Features are outdated - last: 2025-08-15, current: 2025-08-19
+2025-08-19 07:11:37,117 - INFO - Using CSV features file: E:\10pearls\Data\feature_store\karachi_daily_features.csv
+2025-08-19 07:11:37,117 - INFO - Latest feature date: 2025-08-15
+2025-08-19 07:11:37,117 - INFO - Current date: 2025-08-19
+2025-08-19 07:11:37,117 - WARNING - Features are outdated - last: 2025-08-15, current: 2025-08-19
+2025-08-19 07:11:37,117 - ERROR - ERROR: No current features available in either CSV or parquet
+2025-08-19 07:11:37,117 - ERROR - Real-time predictions failed!
+2025-08-19 07:19:16,099 - INFO - ============================================================
+2025-08-19 07:19:16,099 - INFO - REAL-TIME AQI PREDICTION SYSTEM
+2025-08-19 07:19:16,099 - INFO - ============================================================
+2025-08-19 07:19:16,099 - INFO - Starting real-time AQI predictions...
+2025-08-19 07:19:16,099 - INFO - Current UTC date: 2025-08-19
+2025-08-19 07:19:16,123 - INFO - Using CSV features file: E:\10pearls\Data\feature_store\karachi_daily_features.csv
+2025-08-19 07:19:16,125 - INFO - Latest feature date: 2025-08-15
+2025-08-19 07:19:16,125 - INFO - Current date: 2025-08-19
+2025-08-19 07:19:16,125 - WARNING - Features are outdated - last: 2025-08-15, current: 2025-08-19
+2025-08-19 07:19:16,139 - INFO - Using CSV features file: E:\10pearls\Data\feature_store\karachi_daily_features.csv
+2025-08-19 07:19:16,139 - INFO - Latest feature date: 2025-08-15
+2025-08-19 07:19:16,139 - INFO - Current date: 2025-08-19
+2025-08-19 07:19:16,139 - WARNING - Features are outdated - last: 2025-08-15, current: 2025-08-19
+2025-08-19 07:19:16,139 - ERROR - ERROR: No current features available in either CSV or parquet
+2025-08-19 07:19:16,139 - ERROR - Real-time predictions failed!
+2025-08-19 07:26:06,690 - INFO - ============================================================
+2025-08-19 07:26:06,690 - INFO - REAL-TIME AQI PREDICTION SYSTEM
+2025-08-19 07:26:06,690 - INFO - ============================================================
+2025-08-19 07:26:06,692 - INFO - Starting real-time AQI predictions...
+2025-08-19 07:26:06,692 - INFO - Current UTC date: 2025-08-19
+2025-08-19 07:26:06,746 - INFO - Using CSV features file: E:\10pearls\Data\feature_store\karachi_daily_features.csv
+2025-08-19 07:26:06,759 - INFO - Latest feature date: 2025-08-15
+2025-08-19 07:26:06,759 - INFO - Current date: 2025-08-19
+2025-08-19 07:26:06,759 - WARNING - Features are outdated - last: 2025-08-15, current: 2025-08-19
+2025-08-19 07:26:06,794 - INFO - Using CSV features file: E:\10pearls\Data\feature_store\karachi_daily_features.csv
+2025-08-19 07:26:06,800 - INFO - Latest feature date: 2025-08-15
+2025-08-19 07:26:06,803 - INFO - Current date: 2025-08-19
+2025-08-19 07:26:06,803 - WARNING - Features are outdated - last: 2025-08-15, current: 2025-08-19
+2025-08-19 07:26:06,803 - ERROR - ERROR: No current features available in either CSV or parquet
+2025-08-19 07:26:06,805 - ERROR - Real-time predictions failed!
+2025-08-19 07:33:06,455 - INFO - ============================================================
+2025-08-19 07:33:06,455 - INFO - REAL-TIME AQI PREDICTION SYSTEM
+2025-08-19 07:33:06,455 - INFO - ============================================================
+2025-08-19 07:33:06,455 - INFO - Starting real-time AQI predictions...
+2025-08-19 07:33:06,455 - INFO - Current UTC date: 2025-08-19
+2025-08-19 07:33:06,469 - INFO - Using CSV features file: E:\10pearls\Data\feature_store\karachi_daily_features.csv
+2025-08-19 07:33:06,469 - INFO - Latest feature date: 2025-08-19
+2025-08-19 07:33:06,469 - INFO - Current date: 2025-08-19
+2025-08-19 07:33:06,469 - INFO - SUCCESS: Features are current - have today's data
+2025-08-19 07:33:06,469 - INFO - SUCCESS: Using CSV features file for validation
+2025-08-19 07:33:22,504 - ERROR - ERROR: Error generating real-time predictions: Could not open Parquet input source '<Buffer>': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file.
+2025-08-19 07:33:22,504 - ERROR - Real-time predictions failed!
+2025-08-19 07:37:19,237 - INFO - ============================================================
+2025-08-19 07:37:19,238 - INFO - REAL-TIME AQI PREDICTION SYSTEM
+2025-08-19 07:37:19,238 - INFO - ============================================================
+2025-08-19 07:37:19,238 - INFO - Starting real-time AQI predictions...
+2025-08-19 07:37:19,238 - INFO - Current UTC date: 2025-08-19
+2025-08-19 07:37:19,258 - INFO - Using CSV features file: E:\10pearls\Data\feature_store\karachi_daily_features.csv
+2025-08-19 07:37:19,262 - INFO - Latest feature date: 2025-08-19
+2025-08-19 07:37:19,263 - INFO - Current date: 2025-08-19
+2025-08-19 07:37:19,263 - INFO - SUCCESS: Features are current - have today's data
+2025-08-19 07:37:19,263 - INFO - SUCCESS: Using CSV features file for validation
+2025-08-19 07:37:21,376 - ERROR - ERROR: Error generating real-time predictions: Could not open Parquet input source '<Buffer>': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file.
+2025-08-19 07:37:21,376 - ERROR - Real-time predictions failed!
+2025-08-19 07:39:41,107 - INFO - ============================================================
+2025-08-19 07:39:41,108 - INFO - REAL-TIME AQI PREDICTION SYSTEM
+2025-08-19 07:39:41,109 - INFO - ============================================================
+2025-08-19 07:39:41,109 - INFO - Starting real-time AQI predictions...
+2025-08-19 07:39:41,109 - INFO - Current UTC date: 2025-08-19
+2025-08-19 07:39:41,167 - INFO - Using CSV features file: E:\10pearls\Data\feature_store\karachi_daily_features.csv
+2025-08-19 07:39:41,184 - INFO - Latest feature date: 2025-08-19
+2025-08-19 07:39:41,185 - INFO - Current date: 2025-08-19
+2025-08-19 07:39:41,186 - INFO - SUCCESS: Features are current - have today's data
+2025-08-19 07:39:41,188 - INFO - SUCCESS: Using CSV features file for validation
+2025-08-19 07:39:52,736 - INFO - Generating predictions...
+2025-08-19 07:39:57,601 - INFO - SUCCESS: Predictions saved to: E:\10pearls\Models\Models\registry\latest_forecast.json
+2025-08-19 07:39:57,601 - INFO - PREDICTION SUMMARY:
+2025-08-19 07:39:57,602 - INFO -   Day 1 (2025-08-20): 81.19
+2025-08-19 07:39:57,602 - INFO -   Day 2 (2025-08-21): 96.03
+2025-08-19 07:39:57,602 - INFO -   Day 3 (2025-08-22): 73.48
+2025-08-19 07:39:57,602 - INFO - SUCCESS: AQI levels are acceptable: Day 1 AQI = 81.19
+2025-08-19 07:39:57,603 - INFO - SUCCESS: Real-time predictions completed successfully!
+2025-08-19 07:39:58,588 - INFO - ============================================================
+2025-08-19 07:39:58,588 - INFO - REAL-TIME AQI PREDICTION SYSTEM
+2025-08-19 07:39:58,588 - INFO - ============================================================
+2025-08-19 07:39:58,591 - INFO - Starting real-time AQI predictions...
+2025-08-19 07:39:58,591 - INFO - Current UTC date: 2025-08-19
+2025-08-19 07:39:58,607 - INFO - Using CSV features file: E:\10pearls\Data\feature_store\karachi_daily_features.csv
+2025-08-19 07:39:58,622 - INFO - Latest feature date: 2025-08-19
+2025-08-19 07:39:58,622 - INFO - Current date: 2025-08-19
+2025-08-19 07:39:58,623 - INFO - SUCCESS: Features are current - have today's data
+2025-08-19 07:39:58,624 - INFO - SUCCESS: Using CSV features file for validation
+2025-08-19 07:40:07,616 - INFO - Generating predictions...
+2025-08-19 07:40:10,089 - INFO - SUCCESS: Predictions saved to: E:\10pearls\Models\Models\registry\latest_forecast.json
+2025-08-19 07:40:10,090 - INFO - PREDICTION SUMMARY:
+2025-08-19 07:40:10,091 - INFO -   Day 1 (2025-08-20): 86.31
+2025-08-19 07:40:10,091 - INFO -   Day 2 (2025-08-21): 89.55
+2025-08-19 07:40:10,093 - INFO -   Day 3 (2025-08-22): 89.45
+2025-08-19 07:40:10,093 - INFO - SUCCESS: AQI levels are acceptable: Day 1 AQI = 86.31
+2025-08-19 07:40:10,094 - INFO - SUCCESS: Real-time predictions completed successfully!
+2025-08-19 07:40:51,098 - INFO - ============================================================
+2025-08-19 07:40:51,098 - INFO - REAL-TIME AQI PREDICTION SYSTEM
+2025-08-19 07:40:51,098 - INFO - ============================================================
+2025-08-19 07:40:51,098 - INFO - Starting real-time AQI predictions...
+2025-08-19 07:40:51,098 - INFO - Current UTC date: 2025-08-19
+2025-08-19 07:40:51,112 - INFO - Using CSV features file: E:\10pearls\Data\feature_store\karachi_daily_features.csv
+2025-08-19 07:40:51,115 - INFO - Latest feature date: 2025-08-19
+2025-08-19 07:40:51,115 - INFO - Current date: 2025-08-19
+2025-08-19 07:40:51,115 - INFO - SUCCESS: Features are current - have today's data
+2025-08-19 07:40:51,115 - INFO - SUCCESS: Using CSV features file for validation
+2025-08-19 07:40:52,580 - INFO - Generating predictions...
+2025-08-19 07:40:54,691 - INFO - SUCCESS: Predictions saved to: E:\10pearls\Models\Models\registry\latest_forecast.json
+2025-08-19 07:40:54,691 - INFO - PREDICTION SUMMARY:
+2025-08-19 07:40:54,691 - INFO -   Day 1 (2025-08-20): 81.19
+2025-08-19 07:40:54,691 - INFO -   Day 2 (2025-08-21): 96.03
+2025-08-19 07:40:54,691 - INFO -   Day 3 (2025-08-22): 73.48
+2025-08-19 07:40:54,691 - INFO - SUCCESS: AQI levels are acceptable: Day 1 AQI = 81.19
+2025-08-19 07:40:54,691 - INFO - SUCCESS: Real-time predictions completed successfully!
+2025-08-19 07:43:48,892 - INFO - ============================================================
+2025-08-19 07:43:48,892 - INFO - REAL-TIME AQI PREDICTION SYSTEM
+2025-08-19 07:43:48,892 - INFO - ============================================================
+2025-08-19 07:43:48,892 - INFO - Starting real-time AQI predictions...
+2025-08-19 07:43:48,892 - INFO - Current UTC date: 2025-08-19
+2025-08-19 07:43:48,927 - INFO - Using CSV features file: E:\10pearls\Data\feature_store\karachi_daily_features.csv
+2025-08-19 07:43:48,931 - INFO - Latest feature date: 2025-08-19
+2025-08-19 07:43:48,933 - INFO - Current date: 2025-08-19
+2025-08-19 07:43:48,933 - INFO - SUCCESS: Features are current - have today's data
+2025-08-19 07:43:48,933 - INFO - SUCCESS: Using CSV features file for validation
+2025-08-19 07:43:50,618 - INFO - Generating predictions...
+2025-08-19 07:43:52,722 - INFO - SUCCESS: Predictions saved to: E:\10pearls\Models\Models\registry\latest_forecast.json
+2025-08-19 07:43:52,722 - INFO - PREDICTION SUMMARY:
+2025-08-19 07:43:52,722 - INFO -   Day 1 (2025-08-20): 81.19
+2025-08-19 07:43:52,722 - INFO -   Day 2 (2025-08-21): 96.03
+2025-08-19 07:43:52,724 - INFO -   Day 3 (2025-08-22): 73.48
+2025-08-19 07:43:52,724 - INFO - SUCCESS: AQI levels are acceptable: Day 1 AQI = 81.19
+2025-08-19 07:43:52,724 - INFO - SUCCESS: Real-time predictions completed successfully!
+2025-08-19 07:49:22,116 - INFO - ============================================================
+2025-08-19 07:49:22,116 - INFO - REAL-TIME AQI PREDICTION SYSTEM
+2025-08-19 07:49:22,116 - INFO - ============================================================
+2025-08-19 07:49:22,116 - INFO - Starting real-time AQI predictions...
+2025-08-19 07:49:22,116 - INFO - Current UTC date: 2025-08-19
+2025-08-19 07:49:22,132 - INFO - Using CSV features file: E:\10pearls\Data\feature_store\karachi_daily_features.csv
+2025-08-19 07:49:22,132 - INFO - Latest feature date: 2025-08-19
+2025-08-19 07:49:22,132 - INFO - Current date: 2025-08-19
+2025-08-19 07:49:22,132 - INFO - SUCCESS: Features are current - have today's data
+2025-08-19 07:49:22,132 - INFO - SUCCESS: Using CSV features file for validation
+2025-08-19 07:49:23,914 - INFO - Generating predictions...
+2025-08-19 07:49:25,752 - INFO - SUCCESS: Predictions saved to: E:\10pearls\Models\Models\registry\latest_forecast.json
+2025-08-19 07:49:25,752 - INFO - PREDICTION SUMMARY:
+2025-08-19 07:49:25,752 - INFO -   Day 1 (2025-08-20): 81.19
+2025-08-19 07:49:25,752 - INFO -   Day 2 (2025-08-21): 96.03
+2025-08-19 07:49:25,752 - INFO -   Day 3 (2025-08-22): 73.48
+2025-08-19 07:49:25,752 - INFO - SUCCESS: AQI levels are acceptable: Day 1 AQI = 81.19
+2025-08-19 07:49:25,752 - INFO - SUCCESS: Real-time predictions completed successfully!
+2025-08-19 07:53:17,607 - INFO - ============================================================
+2025-08-19 07:53:17,607 - INFO - REAL-TIME AQI PREDICTION SYSTEM
+2025-08-19 07:53:17,607 - INFO - ============================================================
+2025-08-19 07:53:17,607 - INFO - Starting real-time AQI predictions...
+2025-08-19 07:53:17,607 - INFO - Current UTC date: 2025-08-19
+2025-08-19 07:53:17,666 - INFO - Using CSV features file: E:\10pearls\Data\feature_store\karachi_daily_features.csv
+2025-08-19 07:53:17,678 - INFO - Latest feature date: 2025-08-19
+2025-08-19 07:53:17,678 - INFO - Current date: 2025-08-19
+2025-08-19 07:53:17,678 - INFO - SUCCESS: Features are current - have today's data
+2025-08-19 07:53:17,678 - INFO - SUCCESS: Using CSV features file for validation
+2025-08-19 07:53:28,413 - INFO - Generating predictions...
+2025-08-19 07:53:32,345 - INFO - SUCCESS: Predictions saved to: E:\10pearls\Models\Models\registry\latest_forecast.json
+2025-08-19 07:53:32,345 - INFO - PREDICTION SUMMARY:
+2025-08-19 07:53:32,345 - INFO -   Day 1 (2025-08-20): 81.19
+2025-08-19 07:53:32,345 - INFO -   Day 2 (2025-08-21): 96.03
+2025-08-19 07:53:32,345 - INFO -   Day 3 (2025-08-22): 73.48
+2025-08-19 07:53:32,345 - INFO - SUCCESS: AQI levels are acceptable: Day 1 AQI = 81.19
+2025-08-19 07:53:32,345 - INFO - SUCCESS: Real-time predictions completed successfully!
+2025-08-19 08:47:07,945 - INFO - ============================================================
+2025-08-19 08:47:07,945 - INFO - REAL-TIME AQI PREDICTION SYSTEM
+2025-08-19 08:47:07,945 - INFO - ============================================================
+2025-08-19 08:47:07,945 - INFO - Starting real-time AQI predictions...
+2025-08-19 08:47:07,945 - INFO - Current UTC date: 2025-08-19
+2025-08-19 08:47:07,966 - INFO - Using CSV features file: E:\10pearls\Data\feature_store\karachi_daily_features.csv
+2025-08-19 08:47:07,974 - INFO - Latest feature date: 2025-08-19
+2025-08-19 08:47:07,974 - INFO - Current date: 2025-08-19
+2025-08-19 08:47:07,974 - INFO - SUCCESS: Features are current - have today's data
+2025-08-19 08:47:07,974 - INFO - SUCCESS: Using CSV features file for validation
+2025-08-19 08:47:09,868 - ERROR - ERROR: Error generating real-time predictions: 'charmap' codec can't encode character '\U0001f50d' in position 2: character maps to <undefined>
+2025-08-19 08:47:09,868 - ERROR - Real-time predictions failed!
+2025-08-19 08:50:50,328 - INFO - ============================================================
+2025-08-19 08:50:50,329 - INFO - REAL-TIME AQI PREDICTION SYSTEM
+2025-08-19 08:50:50,329 - INFO - ============================================================
+2025-08-19 08:50:50,329 - INFO - Starting real-time AQI predictions...
+2025-08-19 08:50:50,329 - INFO - Current UTC date: 2025-08-19
+2025-08-19 08:50:50,348 - INFO - Using CSV features file: E:\10pearls\Data\feature_store\karachi_daily_features.csv
+2025-08-19 08:50:50,350 - INFO - Latest feature date: 2025-08-19
+2025-08-19 08:50:50,350 - INFO - Current date: 2025-08-19
+2025-08-19 08:50:50,350 - INFO - SUCCESS: Features are current - have today's data
+2025-08-19 08:50:50,350 - INFO - SUCCESS: Using CSV features file for validation
+2025-08-19 08:50:52,266 - ERROR - ERROR: Error generating real-time predictions: 'charmap' codec can't encode character '\u2705' in position 18: character maps to <undefined>
+2025-08-19 08:50:52,266 - ERROR - Real-time predictions failed!

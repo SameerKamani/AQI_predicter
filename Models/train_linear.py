@@ -19,7 +19,7 @@ except Exception:
     shap = None
 
 
-DEFAULT_PARQUET = os.path.join("Data", "feature_store", "karachi_daily_features.parquet")
+DEFAULT_PARQUET = os.path.join("..", "Data", "feature_store", "karachi_daily_features.parquet")
 DEFAULT_REGISTRY = os.path.join("Models", "registry")
 DEFAULT_OUT = os.path.join("EDA", "linear_output")
 
@@ -31,9 +31,9 @@ def select_feature_columns(df: pd.DataFrame) -> List[str]:
         "created",
         "city",
         "karachi_id",
-        "target_aqi_d1",
-        "target_aqi_d2",
-        "target_aqi_d3",
+        "AQI_t+1",
+        "AQI_t+2",
+        "AQI_t+3",
     }
     return [c for c in df.columns if c not in exclude]
 
@@ -169,7 +169,7 @@ def main():
     if not os.path.exists(args.parquet):
         raise FileNotFoundError(f"Parquet not found: {args.parquet}")
     df = pd.read_parquet(args.parquet)
-    req = {"event_timestamp", "aqi_daily", "target_aqi_d1", "target_aqi_d2", "target_aqi_d3"}
+    req = {"event_timestamp", "AQI", "AQI_t+1", "AQI_t+2", "AQI_t+3"}
     miss = req - set(df.columns)
     if miss:
         raise ValueError(f"Missing required columns: {miss}")
@@ -179,7 +179,7 @@ def main():
 
     results: Dict[str, Dict[str, float]] = {}
     chosen: Dict[str, str] = {}
-    for target in ["target_aqi_d1", "target_aqi_d2", "target_aqi_d3"]:
+    for target in ["AQI_t+1", "AQI_t+2", "AQI_t+3"]:
         Xtr, Xte, ytr, yte, feats = time_split(df, target, args.holdout_days)
         model, name, metrics = train_and_select(Xtr, ytr, Xte, yte, args.seed)
         results[target] = metrics

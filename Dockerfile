@@ -4,11 +4,24 @@ FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONPATH=/app
 
-# OS deps (lightgbm needs OpenMP runtime, curl for health checks)
+# OS deps (lightgbm needs OpenMP runtime, curl for health checks, ML dependencies)
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libgomp1 curl \
+    && apt-get install -y --no-install-recommends \
+        libgomp1 \
+        curl \
+        gcc \
+        g++ \
+        libffi-dev \
+        libssl-dev \
+        libblas-dev \
+        liblapack-dev \
+        libatlas-base-dev \
+        libhdf5-dev \
+        libopenblas-dev \
+        pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -35,7 +48,7 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Default command - updated to match your WebApp structure
-CMD ["uvicorn", "WebApp.Backend.app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# Default command - corrected path for your project structure (production-ready)
+CMD ["uvicorn", "WebApp.Backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 

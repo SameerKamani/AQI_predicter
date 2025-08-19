@@ -20,7 +20,7 @@ except Exception:
     lgb = None
 
 
-DEFAULT_PARQUET = os.path.join("Data", "feature_store", "karachi_daily_features.parquet")
+DEFAULT_PARQUET = os.path.join("..", "Data", "feature_store", "karachi_daily_features.parquet")
 DEFAULT_REGISTRY = os.path.join("Models", "registry")
 DEFAULT_OUT = os.path.join("EDA", "blend_output")
 
@@ -32,9 +32,9 @@ def select_feature_columns(df: pd.DataFrame) -> List[str]:
         "created",
         "city",
         "karachi_id",
-        "target_aqi_d1",
-        "target_aqi_d2",
-        "target_aqi_d3",
+        "AQI_t+1",
+        "AQI_t+2",
+        "AQI_t+3",
     }
     return [c for c in df.columns if c not in exclude]
 
@@ -77,6 +77,14 @@ def metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
     return {"rmse": rmse, "mae": mae, "r2": r2, "mape_pct": mape, "acc_category": acc_cat, "acc_within_15": within15}
 
 
+def _coerce_numeric_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    coerced = df.copy()
+    for col in coerced.columns:
+        coerced[col] = pd.to_numeric(coerced[col], errors="coerce")
+    coerced = coerced.replace([np.inf, -np.inf], np.nan)
+    return coerced.fillna(coerced.mean(numeric_only=True))
+
+
 def latest_file(pattern: str) -> str:
     files = glob(pattern)
     if not files:
@@ -106,15 +114,22 @@ def load_generic_preds(registry_dir: str, prefix: str, horizon: str, col_name: s
 
 
 def load_linear_model_and_pred(parquet: str, registry_dir: str, horizon: str, holdout_days: int) -> Tuple[pd.DataFrame, str]:
-    path = latest_file(os.path.join(registry_dir, f"linear_{horizon}_*.joblib"))
+    # The 'horizon' passed here is already the 'hdX' format for linear. We need to use 'horizon_target' for the actual file lookup.
+    # Let's derive horizon_target from horizon or pass it directly. For now, let's assume it should be the full target name.
+    # The main loop now passes horizon_target to load_lightgbm_preds, but it passes 'horizon' (hd1,hd2,hd3) here.
+    # So, we need to convert back from hd1/hd2/hd3 to AQI_t+1/2/3 to find the file.
+    horizon_target_map = {"hd1": "AQI_t+1", "hd2": "AQI_t+2", "hd3": "AQI_t+3"}
+    actual_target_name = horizon_target_map[horizon]
+
+    path = latest_file(os.path.join(registry_dir, f"linear_{actual_target_name}_*.joblib"))
     if not path:
-        raise FileNotFoundError(f"No linear model found for {horizon} in {registry_dir}")
+        raise FileNotFoundError(f"No linear model found for {horizon} in {registry_dir}. Looked for: linear_{actual_target_name}_*.joblib")
     payload = joblib.load(path)
     model = payload["model"]
     feats = payload["features"]
 
     df = pd.read_parquet(parquet).sort_values("event_timestamp").reset_index(drop=True)
-    target_col = {"hd1": "target_aqi_d1", "hd2": "target_aqi_d2", "hd3": "target_aqi_d3"}[horizon]
+    target_col = {"hd1": "AQI_t+1", "hd2": "AQI_t+2", "hd3": "AQI_t+3"}[horizon]
     Xte_all, yte, ts, _ = time_split(df, target_col, holdout_days)
     Xte = Xte_all[feats].copy()
     y_pred = model.predict(Xte)
@@ -182,28 +197,43 @@ def main():
     # Load full features once for SHAP alignment
     df_full = pd.read_parquet(args.parquet).sort_values("event_timestamp").reset_index(drop=True)
 
-    for horizon in ["hd1", "hd2", "hd3"]:
+    for horizon_target in ["AQI_t+1", "AQI_t+2", "AQI_t+3"]:
+        # The `horizon` variable in this script refers to the old 'hd1', 'hd2', 'hd3' style for artifacts.json and summary.json.
+        # The `horizon_target` refers to the actual target column name.
+        # We need to map horizon_target back to the 'hX' style for saving summary/SHAP artifacts if needed, or update those to use full name.
+        # For simplicity, let's keep `horizon` for saving artifacts as 'h1', 'h2', 'h3' and use `horizon_target` for loading.
+        horizon_map = {"AQI_t+1": "hd1", "AQI_t+2": "hd2", "AQI_t+3": "hd3"}
+        horizon = horizon_map[horizon_target]
+
         # Load predictions (support LGB, Linear, HGBR, RF)
-        lgb_df = load_lightgbm_preds(args.registry, horizon)
+        lgb_df = load_lightgbm_preds(args.registry, horizon_target)
         lin_df, lin_model_path = load_linear_model_and_pred(args.parquet, args.registry, horizon, args.holdout_days)
         base_frames = [lgb_df, lin_df]
         base_cols = ["y_pred_lgb", "y_pred_linear"]
-        # XGBoost disabled: not loading xgb preds
+        
         # HGBR
         try:
-            hgb_df = load_generic_preds(args.registry, "hgb", horizon, "y_pred_hgb")
+            # Use horizon_target for file lookup as models save with full target name
+            hgb_df = load_generic_preds(args.registry, "hgb", horizon_target, "y_pred_hgb")
             base_frames.append(hgb_df)
             base_cols.append("y_pred_hgb")
-        except Exception:
-            pass
+            print(f"Included HGBR for {horizon_target}")
+        except FileNotFoundError as e:
+            print(f"HGBR predictions not found for {horizon_target}: {e}")
+        except Exception as e:
+            print(f"Error loading HGBR predictions for {horizon_target}: {e}")
 
         # RandomForest
         try:
-            rf_df = load_generic_preds(args.registry, "rf", horizon, "y_pred_rf")
+            # Use horizon_target for file lookup
+            rf_df = load_generic_preds(args.registry, "rf", horizon_target, "y_pred_rf")
             base_frames.append(rf_df)
             base_cols.append("y_pred_rf")
-        except Exception:
-            pass
+            print(f"Included RandomForest for {horizon_target}")
+        except FileNotFoundError as e:
+            print(f"RandomForest predictions not found for {horizon_target}: {e}")
+        except Exception as e:
+            print(f"Error loading RandomForest predictions for {horizon_target}: {e}")
 
         # Align by timestamp
         merged = base_frames[0]
@@ -266,7 +296,7 @@ def main():
 
         # Record artifacts used
         artifacts[horizon] = {
-            "lightgbm_preds": latest_file(os.path.join(args.registry, f"lgb_{horizon}_*_preds.csv")),
+            "lightgbm_preds": latest_file(os.path.join(args.registry, f"lgb_{horizon_target}_*_preds.csv")),
             "linear_model": lin_model_path,
             "holdout_days": str(args.holdout_days),
         }
@@ -275,7 +305,7 @@ def main():
         try:
             if shap is not None:
                 # Build holdout feature matrix aligned to merged timestamps
-                target_col = {"hd1": "target_aqi_d1", "hd2": "target_aqi_d2", "hd3": "target_aqi_d3"}[horizon]
+                target_col = {"hd1": "AQI_t+1", "hd2": "AQI_t+2", "hd3": "AQI_t+3"}[horizon]
                 # Reuse time_split to get holdout features and timestamps
                 Xte_all, _, ts_all, feats = time_split(df_full, target_col, args.holdout_days)
                 # Align rows to merged event_timestamp
@@ -291,35 +321,17 @@ def main():
                 ).drop(columns=["event_timestamp"])  # same order as merged
 
                 # Ensure all features are numeric for SHAP analysis
-                try:
-                    # Convert all features to numeric, coercing errors to NaN
-                    for col in X_aligned.columns:
-                        if col in feats:  # Only process feature columns
-                            X_aligned[col] = pd.to_numeric(X_aligned[col], errors='coerce')
-                    
-                    # Fill any resulting NaN values with 0 for SHAP compatibility
-                    X_aligned = X_aligned.fillna(0)
-                    
-                    # Verify all features are now numeric
-                    non_numeric_cols = X_aligned[feats].select_dtypes(exclude=['number']).columns
-                    if len(non_numeric_cols) > 0:
-                        print(f"Warning: Non-numeric columns after conversion: {list(non_numeric_cols)}")
-                        # Remove non-numeric columns from features list
-                        feats = [f for f in feats if f not in non_numeric_cols]
-                        X_aligned = X_aligned[feats]
-                    
-                    print(f"SHAP analysis using {len(feats)} numeric features for {horizon}")
-                    
-                except Exception as e:
-                    print(f"Data type conversion failed for {horizon}: {e}")
-                    continue
+                X_aligned = _coerce_numeric_dataframe(X_aligned)
+                
+                # After robust coercion, all columns should be numeric. No need to select dtypes or remove.
+                print(f"SHAP analysis using {len(feats)} numeric features for {horizon}")
 
                 # Store SHAP values for each base model
                 shap_values = {}
                 model_names = []
                 
                 # LightGBM SHAP
-                lgb_model_path = latest_file(os.path.join(args.registry, f"lgb_{horizon}_*.txt"))
+                lgb_model_path = latest_file(os.path.join(args.registry, f"lgb_{horizon_target}_*.txt"))
                 if lgb is not None and lgb_model_path:
                     try:
                         booster = lgb.Booster(model_file=lgb_model_path)
@@ -333,7 +345,7 @@ def main():
                         print(f"LightGBM SHAP failed for {horizon}: {e}")
 
                 # HGBR SHAP
-                hgbr_model_path = latest_file(os.path.join(args.registry, f"hgbr_{horizon}_*.pkl"))
+                hgbr_model_path = latest_file(os.path.join(args.registry, f"hgbr_{horizon_target}_*.pkl"))
                 if hgbr_model_path:
                     try:
                         hgbr_model = joblib.load(hgbr_model_path)
@@ -347,7 +359,7 @@ def main():
                         print(f"HGBR SHAP failed for {horizon}: {e}")
 
                 # Random Forest SHAP
-                rf_model_path = latest_file(os.path.join(args.registry, f"rf_{horizon}_*.pkl"))
+                rf_model_path = latest_file(os.path.join(args.registry, f"rf_{horizon_target}_*.pkl"))
                 if rf_model_path:
                     try:
                         rf_model = joblib.load(rf_model_path)
@@ -360,7 +372,7 @@ def main():
                         print(f"Random Forest SHAP failed for {horizon}: {e}")
 
                 # Linear SHAP using saved pipeline
-                lin_model_path = latest_file(os.path.join(args.registry, f"linear_{horizon}_*.pkl"))
+                lin_model_path = latest_file(os.path.join(args.registry, f"linear_{horizon_target}_*.pkl"))
                 if lin_model_path:
                     try:
                         payload = joblib.load(lin_model_path)

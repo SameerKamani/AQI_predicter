@@ -1,0 +1,13 @@
+{
+  "horizon": "AQI_t+3",
+  "created_utc": "20250819T000201Z",
+  "model_path": "Models\\registry\\hgb_AQI_t+3_20250819T000201Z.joblib",
+  "metrics": {
+    "rmse": 11.671961138703772,
+    "mae": 8.7761629781114,
+    "r2": -0.07046385325569493,
+    "mape_pct": 10.816573499387463
+  },
+  "predictions_path": "Models\\registry\\hgb_AQI_t+3_20250819T000201Z_preds.csv",
+  "library": "sklearn.HGBR"
+}

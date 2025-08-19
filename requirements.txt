@@ -13,8 +13,10 @@ scikit-learn
 joblib
 shap
 optuna
-xgboost
 fastapi
 uvicorn
 gradio
 plotly
+tensorflow-cpu==2.15.0
+
+

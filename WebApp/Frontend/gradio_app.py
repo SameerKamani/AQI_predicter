@@ -119,7 +119,7 @@ def create_aqi_chart(hd1, hd2, hd3):
                     if api_dates and api_aqi:
                         dates = pd.to_datetime(api_dates)
                         historical_aqi = np.array(api_aqi)
-                        print(f"✅ Using API data: {len(dates)} points from {dates.min()} to {dates.max()}")
+                        print(f" Using API data: {len(dates)} points from {dates.min()} to {dates.max()}")
                     else:
                         raise Exception("No valid API data")
                 else:
@@ -127,23 +127,27 @@ def create_aqi_chart(hd1, hd2, hd3):
             else:
                 raise Exception(f"API request failed: {response.status_code}")
         except Exception as api_error:
-            print(f"⚠️ API fetch failed: {api_error}, falling back to parquet")
+            print(f"API fetch failed: {api_error}, falling back to CSV")
             
-            # Fallback to parquet file
-            features_path = Path(__file__).parent.parent.parent / "Data" / "feature_store" / "karachi_daily_features.parquet"
+            # Fallback to CSV file (updated by data pipeline)
+            features_path = Path(__file__).parent.parent.parent / "Data" / "feature_store" / "karachi_daily_features.csv"
             
             if features_path.exists():
-                df = pd.read_parquet(features_path)
+                df = pd.read_csv(features_path)
                 df = df.sort_values("event_timestamp").tail(30)
                 
                 dates = pd.to_datetime(df["event_timestamp"])
-                historical_aqi = df["aqi_daily"].values
-                print(f"📁 Using parquet data: {len(dates)} points from {dates.min()} to {dates.max()}")
+                # Use aqi_daily if available, otherwise fall back to AQI
+                if "aqi_daily" in df.columns:
+                    historical_aqi = df["aqi_daily"].values
+                else:
+                    historical_aqi = df["AQI"].values
+                print(f" Using CSV data: {len(dates)} points from {dates.min()} to {dates.max()}")
             else:
                 # Generate dummy data if nothing works
                 dates = pd.date_range(end=datetime.now(), periods=30, freq='D')
                 historical_aqi = np.full(30, 70)
-                print("⚠️ No data sources available, using dummy data")
+                print(" No data sources available, using dummy data")
         
         # Ensure we have exactly 30 data points
         if len(dates) > 30:
@@ -161,7 +165,7 @@ def create_aqi_chart(hd1, hd2, hd3):
                 historical_aqi = np.concatenate([historical_aqi, dummy_aqi])
                 
     except Exception as e:
-        print(f"❌ Chart creation error: {e}")
+        print(f" Chart creation error: {e}")
         # Ultimate fallback
         dates = pd.date_range(end=datetime.now(), periods=30, freq='D')
         historical_aqi = np.full(30, 70)
@@ -249,8 +253,11 @@ def predict_aqi(model_selection):
             elif model_selection == "Linear":
                 linear = data.get('linear', {})
                 return linear.get('hd1', 70.0), linear.get('hd2', 76.0), linear.get('hd3', 78.0)
+            elif model_selection == "Random Forest":
+                randomforest = data.get('randomforest', {})
+                return randomforest.get('hd1', 65.0), randomforest.get('hd2', 70.0), randomforest.get('hd3', 75.0)
             else:
-                # Random Forest fallback
+                # Default fallback
                 return 65.00, 70.00, 75.00
         else:
             # Fallback to sample data if API fails
@@ -275,32 +282,85 @@ def update_predictions(model_selection):
 def trigger_realtime_update():
     """Trigger real-time update and return status"""
     try:
-        # Call the backend API to trigger real-time update
-        response = requests.post("http://localhost:8000/update/realtime")
-        if response.status_code == 200:
-            result = response.json()
+        import subprocess
+        import sys
+        from pathlib import Path
+        
+        # Get the path to data_fetch.py relative to the project root
+        project_root = Path(__file__).parent.parent.parent
+        data_fetch_path = project_root / "Data_Collection" / "data_fetch.py"
+        
+        # Check if data_fetch.py exists
+        if not data_fetch_path.exists():
+            return f"**Error:** Data pipeline script not found at {data_fetch_path}\n\nPlease ensure Data_Collection/data_fetch.py exists."
+        
+        status_message = "🔄 **Starting data pipeline update...**\n\n"
+        
+        # Step 1: Run data_fetch.py to update CSV data
+        try:
+            status_message += "**Step 1: Fetching latest weather data...**\n"
+            result = subprocess.run(
+                [sys.executable, str(data_fetch_path)],
+                capture_output=True,
+                text=True,
+                cwd=str(project_root),
+                timeout=120  # 2 minute timeout
+            )
             
-            if result.get('status') == 'skipped':
-                status_message = f"ℹ️ **{result['message']}**\n\n"
-                status_message += f"**Timestamp:** {result['timestamp']}\n"
-                status_message += f"**Next Update:** {result['next_update']}\n\n"
-                status_message += "💡 Your data is already current - no update needed!"
+            if result.returncode == 0:
+                status_message += " Weather data fetched successfully!\n\n"
+                # Extract key info from output
+                output_lines = result.stdout.split('\n')
+                for line in output_lines:
+                    if "Features updated successfully" in line:
+                        status_message += f"📈 **Data Status:** {line.strip()}\n"
+                    elif "Total records:" in line:
+                        status_message += f"📊 **Records:** {line.strip()}\n"
             else:
-                status_message = f"✅ **Real-time update triggered successfully!**\n\n"
-                status_message += f"**Timestamp:** {result['timestamp']}\n"
-                status_message += f"**Next Update:** {result['next_update']}\n\n"
-                status_message += "🔄 Features and predictions are being updated in the background..."
+                status_message += f"❌ **Data fetch failed:** {result.stderr}\n\n"
+                return status_message
                 
-                # Wait a moment for the update to complete, then refresh the chart
-                import time
-                time.sleep(2)
+        except subprocess.TimeoutExpired:
+            status_message += " **Data fetch timed out** (took longer than 2 minutes)\n\n"
+            return status_message
+        except Exception as e:
+            status_message += f" **Data fetch error:** {str(e)}\n\n"
+            return status_message
+        
+        # Step 2: Call backend API to trigger Feast update and predictions
+        try:
+            status_message += "🤖 **Step 2: Updating ML features and predictions...**\n"
+            response = requests.post("http://localhost:8000/update/realtime")
             
-        else:
-            status_message = f"❌ **Update failed:** {response.text}"
+            if response.status_code == 200:
+                result = response.json()
+                
+                if result.get('status') == 'skipped':
+                    status_message += f"ℹ️ **{result['message']}**\n\n"
+                    status_message += f"**Timestamp:** {result['timestamp']}\n"
+                    status_message += f"**Next Update:** {result['next_update']}\n\n"
+                    status_message += "💡 **Data pipeline complete!** Your data is now current."
+                else:
+                    status_message += f"✅ **ML update successful!**\n\n"
+                    status_message += f"**Timestamp:** {result['timestamp']}\n"
+                    status_message += f"**Next Update:** {result['next_update']}\n\n"
+                    status_message += "🎉 **Full data pipeline complete!** Features and predictions updated."
+                    
+                    # Wait for Feast materialization to complete
+                    import time
+                    time.sleep(3)
+            else:
+                status_message += f" **ML update failed:** {response.text}\n\n"
+                status_message += " **Partial success:** Data was updated but ML features failed."
+        
+        except Exception as e:
+            status_message += f" **ML update error:** {str(e)}\n\n"
+            status_message += " **Partial success:** Data was updated but ML features failed."
         
         return status_message
+        
     except Exception as e:
-        return f"❌ **Error:** {str(e)}"
+        return f" **Critical Error:** {str(e)}"
 
 # Create the Gradio interface
 with gr.Blocks(
@@ -362,8 +422,10 @@ with gr.Blocks(
         )
     
     with gr.Column(scale=1, min_width=300):
-        realtime_update_btn = gr.Button("🚀 Force Real-Time Update", variant="secondary", size="lg")
+        realtime_update_btn = gr.Button("🚀 Update Data Pipeline", variant="secondary", size="lg")
         refresh_btn = gr.Button("🔄 Refresh Predictions", variant="primary", size="lg")
+    
+    gr.Markdown("*💡 **Update Data Pipeline**: Fetches latest weather data and updates ML features automatically*")
     
     with gr.Row():
         update_status = gr.Markdown("")

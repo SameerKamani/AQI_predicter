@@ -1,0 +1,34 @@
+{
+  "weights": {
+    "hd1": {
+      "y_pred_lgb": 0.41410851469740556,
+      "y_pred_linear": 0.5858914853025944
+    },
+    "hd2": {
+      "y_pred_lgb": 0.4386911077813795,
+      "y_pred_linear": 0.5613088922186206
+    },
+    "hd3": {
+      "y_pred_lgb": 0.6515738869451054,
+      "y_pred_linear": 0.3484261130548946
+    }
+  },
+  "artifacts": {
+    "hd1": {
+      "lightgbm_preds": "Models\\registry\\lgb_AQI_t+1_20250819T002059Z_preds.csv",
+      "linear_model": "Models\\registry\\linear_AQI_t+1_20250819T002251Z.joblib",
+      "holdout_days": "90"
+    },
+    "hd2": {
+      "lightgbm_preds": "Models\\registry\\lgb_AQI_t+2_20250819T002134Z_preds.csv",
+      "linear_model": "Models\\registry\\linear_AQI_t+2_20250819T002255Z.joblib",
+      "holdout_days": "90"
+    },
+    "hd3": {
+      "lightgbm_preds": "Models\\registry\\lgb_AQI_t+3_20250819T002208Z_preds.csv",
+      "linear_model": "Models\\registry\\linear_AQI_t+3_20250819T002258Z.joblib",
+      "holdout_days": "90"
+    }
+  },
+  "holdout_days": 90
+}

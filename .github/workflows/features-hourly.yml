@@ -34,13 +34,9 @@ jobs:
         env:
           OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
         run: |
-          # Ingest today's partial hours so this truly updates hourly
-          python Data_Collection/feature_store_pipeline.py \
-            --start "$(date -u +%Y-%m-%d)" \
-            --end   "$(date -u +%Y-%m-%d)" \
-            --impute_short_gaps \
-            --min_hours_per_day 16 \
-            --append
+          # Use data_fetch.py instead of feature_store_pipeline.py
+          # This will fetch today's data and append to existing features
+          python Data_Collection/data_fetch.py
 
       - name: Feast apply + materialize last 1 day
         working-directory: feature_repo
@@ -67,7 +63,7 @@ jobs:
           
           # Check latest forecast
           try:
-              with open('Models/registry/latest_forecast.json', 'r') as f:
+              with open('Models/Models/registry/latest_forecast.json', 'r') as f:
                   forecast = json.load(f)
               
               # Check if predictions are for current date
@@ -84,13 +80,13 @@ jobs:
                       feature_date = pd.to_datetime(ts).date()
                       days_diff = (today - feature_date).days
                       if days_diff <= 1:
-                          print("✅ Features are current (within 1 day)")
+                          print("Features are current (within 1 day)")
                       else:
-                          print(f"⚠️ Features are {days_diff} days old")
+                          print(f"Features are {days_diff} days old")
                   else:
-                      print("⚠️ Could not parse feature timestamp")
+                      print("Could not parse feature timestamp")
               else:
-                  print("⚠️ No feature timestamp in forecast")
+                  print("No feature timestamp in forecast")
               
               # Check forecast dates
               if 'forecast_dates' in forecast:
@@ -102,14 +98,14 @@ jobs:
                   print(f"Expected dates: {expected_dates}")
                   
                   if forecast['forecast_dates'] == expected_dates:
-                      print("✅ Forecast dates are correct (current + next 3 days)")
+                      print("Forecast dates are correct (current + next 3 days)")
                   else:
-                      print("⚠️ Forecast dates are incorrect")
+                      print("Forecast dates are incorrect")
               else:
-                  print("⚠️ No forecast dates in prediction")
+                  print("No forecast dates in prediction")
                   
           except Exception as e:
-              print(f"❌ Error checking forecast: {e}")
+              print(f"Error checking forecast: {e}")
           PY
 
       - name: Quick sanity check
@@ -117,7 +113,7 @@ jobs:
           python - << 'PY'
           import pandas as pd
           df = pd.read_csv('Data/feature_store/karachi_daily_features.csv')
-          neg = {c:int((df[c]<0).sum()) for c in ['pm2_5_mean','pm10_mean','co_mean','no_mean','no2_mean','o3_mean','so2_mean','nh3_mean'] if c in df.columns}
+          neg = {c:int((df[c]<0).sum()) for c in ['PM2.5','PM10','CO','NO','NO2','O3','SO2','NH3'] if c in df.columns}
           print('NEGATIVE_COUNTS:', neg)
           PY
 
@@ -128,8 +124,8 @@ jobs:
           path: |
             Data/feature_store/karachi_daily_features.parquet
             Data/feature_store/karachi_daily_features.csv
-            Data/raw/karachi_air_pollution.csv
-            Models/registry/latest_forecast.json
+            Data/raw/karachi_daily_aqi_weather.csv
+            Models/Models/registry/latest_forecast.json
           retention-days: 10
 
 

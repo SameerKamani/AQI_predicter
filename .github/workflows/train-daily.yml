@@ -30,46 +30,51 @@ jobs:
       - name: Install Feast
         run: pip install feast[sqlite]
 
-      - name: Ensure features exist (fallback rebuild 365 days if missing)
+      - name: Ensure features exist (fallback rebuild if missing)
         env:
           OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
         run: |
           if [ ! -f Data/feature_store/karachi_daily_features.parquet ]; then 
-            echo 'Features parquet missing. Rebuilding last 365 days...';
-            python Data_Collection/feature_store_pipeline.py --days 365 --impute_short_gaps --min_hours_per_day 16;
+            echo 'Features parquet missing. Rebuilding features...';
+            python Data_Collection/data_fetch.py;
           else
             echo 'Found features parquet.';
           fi
 
       - name: Train LightGBM
-        run: python Models/train_lightgbm.py --holdout_days 90 --tune --tune_trials 25
-
-      # XGBoost removed
+        working-directory: Models
+        run: python train_lightgbm.py --holdout_days 90 --tune --tune_trials 100
 
       - name: Train HGBR
-        run: python Models/train_hgbr.py --holdout_days 90 --tune --tune_trials 20
+        working-directory: Models
+        run: python train_hgbr.py --holdout_days 90 --tune --tune_trials 100
 
       - name: Train Linear
-        run: python Models/train_linear.py --holdout_days 90
+        working-directory: Models
+        run: python train_linear.py --holdout_days 90
 
       - name: Train RandomForest
-        run: python Models/train_rf.py --holdout_days 90
+        working-directory: Models
+        run: python train_rf.py --holdout_days 90
 
       - name: Stack and calibrate
-        run: python Models/stacking_linear_lightgbm.py --holdout_days 90 --constrain_nonneg --sum_to_one --calibrate
+        working-directory: Models
+        run: python stacking_linear_lightgbm.py --holdout_days 90 --constrain_nonneg --sum_to_one --calibrate
 
       - name: Run EDA
+        working-directory: Models
         run: python EDA/run_eda.py
 
       - name: Predict latest
-        run: python Models/predict_latest.py
+        working-directory: Models
+        run: python predict_latest.py
 
       - name: Alert on hazardous AQI (hd1 >= 200)
         shell: bash
         run: |
           python - <<'PY'
           import json, sys
-          with open('Models/registry/latest_forecast.json','r',encoding='utf-8') as f:
+          with open('Models/Models/registry/latest_forecast.json','r',encoding='utf-8') as f:
               blob = json.load(f)
           hd1 = (blob.get('blend') or {}).get('hd1')
           if hd1 is None:
@@ -92,13 +97,13 @@ jobs:
         with:
           name: train-artifacts-${{ github.run_id }}
           path: |
-            EDA/lightgbm_output/summary.json
-            EDA/hgbr_output/summary.json
-            EDA/linear_output/summary.json
-            EDA/blend_output/summary.json
-            Models/registry/*_preds.csv
-            Models/registry/blend_weights_*.json
-            Models/registry/latest_forecast.json
+            Models/EDA/lightgbm_output/summary.json
+            Models/EDA/hgbr_output/summary.json
+            Models/EDA/linear_output/summary.json
+            Models/EDA/blend_output/summary.json
+            Models/Models/registry/*_preds.csv
+            Models/Models/registry/blend_weights_*.json
+            Models/Models/registry/latest_forecast.json
           retention-days: 14
 
 

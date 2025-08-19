@@ -1,0 +1,18 @@
+{
+  "horizon": "AQI_t+3",
+  "created_utc": "20250819T002208Z",
+  "model_path": "Models\\registry\\lgb_AQI_t+3_20250819T002208Z.txt",
+  "metrics": {
+    "rmse": 12.737127139362915,
+    "mae": 9.503493360062196,
+    "r2": -0.2747567162443605,
+    "mape_pct": 11.434855323528913,
+    "acc_category": 0.9333333333333333,
+    "acc_within_15": 0.7777777777777778
+  },
+  "predictions_path": "Models\\registry\\lgb_AQI_t+3_20250819T002208Z_preds.csv",
+  "feature_importance_registry": "Models\\registry\\lgb_AQI_t+3_20250819T002208Z_feature_importance.csv",
+  "feature_importance_lgb": "EDA\\lightgbm_output\\feature_importance_AQI_t+3.csv",
+  "library": "lightgbm",
+  "lightgbm_version": "4.6.0"
+}
