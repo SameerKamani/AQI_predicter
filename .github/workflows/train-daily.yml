@@ -30,10 +30,10 @@ jobs:
       - name: Fix protobuf compatibility
         run: |
           # Fix protobuf version compatibility with Feast
-          # Feast >=0.25.1 requires protobuf>=3.20
+          # Based on web research: Feast has known issues with protobuf versions
           pip uninstall -y protobuf google-protobuf
-          pip install protobuf>=3.20
-          pip install google-protobuf>=3.20
+          pip install protobuf==3.20.3
+          pip install google-protobuf==3.20.3
 
       - name: Install Feast
         run: |
