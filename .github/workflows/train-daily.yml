@@ -27,8 +27,18 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Fix protobuf compatibility
+        run: |
+          # Fix protobuf version compatibility with Feast
+          # Feast >=0.25.1 requires protobuf>=3.20
+          pip uninstall -y protobuf google-protobuf
+          pip install protobuf>=3.20
+          pip install google-protobuf>=3.20
+
       - name: Install Feast
-        run: pip install feast[sqlite]
+        run: |
+          # Install Feast with compatible protobuf versions
+          pip install feast[sqlite]
 
       - name: Ensure features exist (fallback rebuild if missing)
         env:
