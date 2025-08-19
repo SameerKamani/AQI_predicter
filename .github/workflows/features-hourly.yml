@@ -29,9 +29,9 @@ jobs:
           pip install numpy scipy scikit-learn
           pip install lightgbm xgboost joblib
           pip install requests tqdm
-          pip install "protobuf>=3.20,<4.0"
           pip install typeguard pyarrow
           pip install feast[sqlite]
+          pip install "protobuf>=3.20,<4.0" --force-reinstall
 
       - name: Build features (today, append)
         env:
@@ -42,10 +42,10 @@ jobs:
       - name: Feast apply + materialize last 1 day
         run: |
           cd feature_repo
-          python -m feast apply
+          feast apply
           START=$(date -u -d "-1 day" +"%Y-%m-%dT%H:%M:%SZ")
           END=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          python -m feast materialize "$START" "$END"
+          feast materialize "$START" "$END"
 
       - name: Generate real-time predictions
         env:
