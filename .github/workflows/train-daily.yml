@@ -22,23 +22,14 @@ jobs:
           python-version: '3.10'
           cache: 'pip'
 
-      - name: Install dependencies
+      - name: Install minimal dependencies
         run: |
           python -m pip install --upgrade pip
           pip install pandas>=2.0.0
-          pip install -r requirements.txt
-
-      - name: Fix protobuf compatibility
-        run: |
-          # Fix protobuf version compatibility with Feast
-          # Based on web research: Feast has known issues with protobuf versions
-          pip uninstall -y protobuf
+          pip install numpy scipy scikit-learn
+          pip install lightgbm xgboost joblib optuna matplotlib seaborn shap
           pip install "protobuf>=3.20,<4.0"
-
-      - name: Install Feast
-        run: |
-          # Install Feast with compatible protobuf versions
-          pip install feast[sqlite]
+          pip install feast[sqlite] --no-deps
 
       - name: Ensure features exist (fallback rebuild if missing)
         env:
