@@ -64,10 +64,6 @@ jobs:
         working-directory: Models
         run: python stacking_linear_lightgbm.py --holdout_days 90 --constrain_nonneg --sum_to_one --calibrate
 
-      - name: Run EDA
-        working-directory: Models
-        run: python EDA/run_eda.py
-
       - name: Predict latest
         working-directory: Models
         run: python predict_latest.py
