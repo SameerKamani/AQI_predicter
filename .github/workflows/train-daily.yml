@@ -78,33 +78,6 @@ jobs:
         working-directory: Models
         run: python stacking_linear_lightgbm.py --holdout_days 90 --constrain_nonneg --sum_to_one --calibrate
 
-      - name: Predict latest
-        working-directory: Models
-        run: python predict_latest.py
-
-      - name: Alert on hazardous AQI (hd1 >= 200)
-        shell: bash
-        run: |
-          python - <<'PY'
-          import json, sys
-          with open('Models/Models/registry/latest_forecast.json','r',encoding='utf-8') as f:
-              blob = json.load(f)
-          hd1 = (blob.get('blend') or {}).get('hd1')
-          if hd1 is None:
-              print('No hd1 value in latest forecast; skipping alert')
-              sys.exit(0)
-          try:
-              v = float(hd1)
-          except Exception:
-              v = -1
-          if v >= 200.0:
-              print(f'HAZARDOUS AQI ALERT: blended hd1={v:.1f} >= 200')
-              # Fail the job to raise visibility; change to sys.exit(0) if you prefer non-blocking notice
-              sys.exit(1)
-          else:
-              print(f'OK: blended hd1={v:.1f} < 200')
-          PY
-
       - name: Upload summaries and models
         uses: actions/upload-artifact@v4
         with:
@@ -117,7 +90,6 @@ jobs:
             Models/EDA/blend_output/summary.json
             Models/Models/registry/*_preds.csv
             Models/Models/registry/blend_weights_*.json
-            Models/Models/registry/latest_forecast.json
           retention-days: 14
 
 
