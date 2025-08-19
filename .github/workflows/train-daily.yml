@@ -27,7 +27,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install pandas>=2.0.0
           pip install numpy scipy scikit-learn
-          pip install lightgbm xgboost joblib optuna matplotlib seaborn shap
+          pip install lightgbm xgboost joblib optuna
           pip install requests tqdm
           pip install typeguard pyarrow
           pip install feast[sqlite]
@@ -40,8 +40,22 @@ jobs:
           if [ ! -f Data/feature_store/karachi_daily_features.parquet ]; then 
             echo 'Features parquet missing. Rebuilding features...';
             python Data_Collection/data_fetch.py;
+            
+            # Verify the parquet file was actually created
+            if [ ! -f Data/feature_store/karachi_daily_features.parquet ]; then
+              echo 'ERROR: data_fetch.py failed to create parquet file!';
+              echo 'Checking if CSV was created instead...';
+              if [ -f Data/feature_store/karachi_daily_features.csv ]; then
+                echo 'CSV exists but parquet missing. This indicates parquet creation failed.';
+                ls -la Data/feature_store/;
+              else
+                echo 'Neither CSV nor parquet was created. data_fetch.py completely failed.';
+              fi
+              exit 1;
+            fi
+            echo 'Parquet file successfully created.';
           else
-            echo 'Found features parquet.';
+            echo 'Found existing features parquet.';
           fi
 
       - name: Train LightGBM
@@ -99,6 +113,7 @@ jobs:
             Models/EDA/lightgbm_output/summary.json
             Models/EDA/hgbr_output/summary.json
             Models/EDA/linear_output/summary.json
+            Models/EDA/rf_output/summary.json
             Models/EDA/blend_output/summary.json
             Models/Models/registry/*_preds.csv
             Models/Models/registry/blend_weights_*.json
